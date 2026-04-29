@@ -18,7 +18,7 @@
 - Experiments for ModelNet40 classification and ScanNet semantic segmentation.
 
 ## 1. Environment
-The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
+The code has been tested on Ubuntu 20.04 with 4 A40 GPUs (48GB memory).
 1. Python 3.10.13
     ```bash
     conda create -n your_env_name python=3.10.13
