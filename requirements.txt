@@ -1,0 +1,13 @@
+# Install PyTorch separately for your CUDA version before installing these.
+numpy
+pandas
+scipy
+pyyaml
+tqdm
+transformers
+plyfile
+trimesh
+wget
+cyminiball
+
+# Install OCNN, dwconv, and thsolver following their project-specific CUDA setup.
