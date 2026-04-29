@@ -1,1 +1,84 @@
+﻿# --------------------------------------------------------
+# PointTTT: Unlocking Test-Time Training for 3D Point Clouds
+# ModelNet40 classification configuration.
+# --------------------------------------------------------
 
+SOLVER:
+  gpu: 0,
+  run: train
+  type: adamw
+  best_val: max:accu
+  logdir: logs/modelnet40/pointttt/fewshot_10way_20shot/6
+
+  max_epoch: 300
+  test_every_epoch: 1
+  log_per_iter: 20
+
+  lr: 0.0001  # candidate values: 0.001, 1e-4, 1e-5, 3e-4
+  lr_type: step
+
+  weight_decay: 0.05
+  milestones: (120,160)
+  ckpt_num: 200
+
+DATA:
+  train:
+    # octree building
+    depth: 6
+    full_depth: 2
+
+    # transformation
+    # Normal orientation order: xyz, yzx, or zxy
+    orient_normal: xyz
+    # data augmentations
+    distort: True
+    angle: (0, 0, 5)      # small rotation along z axis
+    interval: (1, 1, 1)
+    scale: 0.25
+    jitter: 0.125
+
+    # data loading
+    location: data/ModelNet40/ModelNet40.ply.normalize
+    #filelist: data/ModelNet40/filelist/m40_train.txt
+
+    filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_train.txt
+
+    batch_size: 32
+    shuffle: True
+    pin_memory: False
+    # num_workers: 0
+
+  test:
+    # octree building
+    depth: 6
+    full_depth: 2
+
+    # transformation
+    orient_normal: xyz
+
+    # data augmentations
+    distort: False
+    angle: (0, 0, 5)      # small rotation along z axis
+    interval: (1, 1, 1)
+    scale: 0.25
+    jitter: 0.125
+
+    # data loading
+    location: data/ModelNet40/ModelNet40.ply.normalize
+    #filelist: data/ModelNet40/filelist/m40_test.txt
+    filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_test.txt
+    batch_size: 16
+    shuffle: False
+    pin_memory: False
+    # num_workers: 0
+
+MODEL:
+  name: pointttt_cls
+  nout: 40
+  channel: 4
+  # nempty: True
+  feature: ND   # N -> Normal (3 channels);
+                # D -> Local displacement (1 channel)
+
+LOSS:
+  num_class: 40
