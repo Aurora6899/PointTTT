@@ -6,7 +6,7 @@
 SOLVER:
   gpu: 0,1,2,3
   run: train
-  logdir: logs/scannetv2/PointTTT_seg/
+  logdir: logs/scannetv2/PointTTT_seg/Pointtt
   best_val: max:mIoU_part
 
   ckpt_num: 200
