@@ -10,11 +10,11 @@ SOLVER:
   best_val: max:accu
   logdir: logs/modelnet40/Pointttt_cls/pointttt
 
-  max_epoch: 300
+  max_epoch: 200
   test_every_epoch: 1
   log_per_iter: 20
 
-  lr: 0.0001  # candidate values: 0.001, 1e-4, 1e-5, 3e-4
+  lr: 0.0001  
   lr_type: step
 
   weight_decay: 0.05
@@ -39,9 +39,8 @@ DATA:
 
     # data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
-    #filelist: data/ModelNet40/filelist/m40_train.txt
-
-    filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_train.txt
+    filelist: data/ModelNet40/filelist/m40_train.txt
+    #filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_train.txt
 
     batch_size: 32
     shuffle: True
@@ -65,8 +64,8 @@ DATA:
 
     # data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
-    #filelist: data/ModelNet40/filelist/m40_test.txt
-    filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_test.txt
+    filelist: data/ModelNet40/filelist/m40_test.txt
+    #filelist: data/ModelNet40/ModelNetFewshot/10way_20shot/6_test.txt
     batch_size: 16
     shuffle: False
     pin_memory: False
