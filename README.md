@@ -1,113 +1,104 @@
 <div align="center">
+<h1>PointTTT</h1>
+<h3>Unlocking Test-Time Training  for 3D Point Clouds</h3>
 
-<h2>PointTTT: A Test-Time Training Framework for Point Cloud Understanding</h2>
+# Overview
 
+<div  align="center">    
+ <img src="Asr.jpg" width = ""  align=center />
 </div>
 
-![PointTTT Framework](Asr.jpg)
+<div align="left">
 
-## Introduction
+## Highlights
 
-This repository contains the official implementation of **PointTTT**, a test-time training framework for point cloud understanding. PointTTT adapts point cloud models at inference time with lightweight self-supervised objectives, improving robustness across object classification, few-shot recognition, and indoor scene segmentation benchmarks.
+- Gating Bi-TTTLayer for bidirectional context modeling on serialized point clouds.
+- Feature Enhancement Projector for local geometric and channel interaction modeling.
+- Adaptive Serialization Router for selecting among Z-order, transposed Z-order, Hilbert, and transposed Hilbert serialization strategies.
+- Experiments for ModelNet40 classification and ScanNet semantic segmentation.
 
-The codebase provides training and evaluation scripts for ModelNet40 classification and ScanNet segmentation, together with configuration files and model implementations used in the paper.
+## 1. Environment
+The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
+1. Python 3.10.13
+    ```bash
+    conda create -n your_env_name python=3.10.13
+    ```
+2. Install torch 2.1.1 + cu118
 
-## Environment
+    ```bash
+    pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
+    ```
 
-```bash
-conda create -n pointttt python=3.10 -y
-conda activate pointttt
-pip install -r requirements.txt
-```
+3. Clone this repository and install the requirements.
 
-Please install the PyTorch and CUDA versions that match your local GPU environment before installing the remaining dependencies.
+    ```bash
+    pip install -r requirements.txt
+    ```
+## 2. ModelNet40 Classification
 
-## Dataset
+1. **Data**: Run the following command to prepare the dataset.
 
-### ModelNet40 Classification
+    ```bash
+    python tools/cls_modelnet.py
+    ```
 
-Download ModelNet40 and place it under:
+2. **Train**: Run the following command to train the network with 1 GPU.
+    ```bash
+    python classification.py --config configs/cls_m40.yaml SOLVER.gpu 0,
+    ```
+3. **ModelNet40** few-shot splits:
 
-```text
-data/ModelNet40/
-```
+- The few-shot setting follows Point-BERT. Please download the ModelNet few-shot split files from the Point-BERT dataset instructions: [Point-BERT DATASET.md](https://github.com/Julie-tang00/Point-BERT/blob/master/DATASET.md).
+- After downloading the splits, organize them to match the paths used in `configs/cls_m40.yaml`, for example `data/ModelNet40/ModelNetFewshot/10way_20shot/6_train.txt` and `data/ModelNet40/ModelNetFewshot/10way_20shot/6_test.txt`.
+## 3. ScanNet Segmentation
+1. **Data**: Download the data from the
+   [ScanNet benchmark](https://kaldir.vc.in.tum.de/scannet_benchmark/).
+   Unzip the data and place it to the folder <scannet_folder>. Run the following
+   command to prepare the dataset.
 
-Expected layout:
+    ```bash
+    python tools/seg_scannet.py --run process_scannet --path_in scannet
+    ```
+    The filelist should be like this:
+    ```bash
 
-```text
-data/ModelNet40/
-  modelnet40_shape_names.txt
-  modelnet40_train.txt
-  modelnet40_test.txt
-  airplane/
-  chair/
-  ...
-```
+    ├── scannet
+    │ ├── scans
+    │ │ ├── [scene_id]
+    │ │ │ ├── [scene_id].aggregation.json
+    │ │ │ ├── [scene_id].txt
+    │ │ │ ├── [scene_id]_vh_clean.aggregation.json
+    │ │ │ ├── [scene_id]_vh_clean.segs.json
+    │ │ │ ├── [scene_id]_vh_clean_2.0.010000.segs.json
+    │ │ │ ├── [scene_id]_vh_clean_2.labels.ply
+    │ │ │ ├── [scene_id]_vh_clean_2.ply
+    │ ├── scans_test
+    │ │ ├── [scene_id]
+    │ │ │ ├── [scene_id].aggregation.json
+    │ │ │ ├── [scene_id].txt
+    │ │ │ ├── [scene_id]_vh_clean.aggregation.json
+    │ │ │ ├── [scene_id]_vh_clean.segs.json
+    │ │ │ ├── [scene_id]_vh_clean_2.0.010000.segs.json
+    │ │ │ ├── [scene_id]_vh_clean_2.ply
+    │ ├── scannetv2-labels.combined.tsv
+    ```
 
-### Few-Shot Classification
+2. **Train**: Run the following command to train the network with 4 GPUs and port 10001. 
 
-PointTTT follows the few-shot setting and data preparation protocol used by Point-BERT. Please download the few-shot data splits from the Point-BERT dataset instructions:
+    ```bash
+    python scripts/run_seg_scannet.py --gpu 0,1,2,3 --alias scannet --port 10001
+    ```
 
-[Point-BERT Dataset README](https://github.com/Julie-tang00/Point-BERT/blob/master/DATASET.md)
+3. **Evaluate**: Run the following command to get the per-point predictions for the validation dataset with a voting strategy. And after voting, the mIoU is 77.6 on the validation dataset.
 
-### ScanNet Segmentation
-
-Download and preprocess ScanNet following the official ScanNet data instructions, then place the processed files under:
-
-```text
-data/ScanNet/
-```
-
-Expected layout:
-
-```text
-data/ScanNet/
-  train/
-  val/
-  test/
-```
-
-## Training and Evaluation
-
-### ModelNet40 Classification
-
-Train PointTTT on ModelNet40:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python tools/cls_modelnet.py --config configs/cls_m40.yaml --exp_name pointttt_modelnet40
-```
-
-Evaluate a trained checkpoint:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python tools/cls_modelnet.py --config configs/cls_m40.yaml --exp_name pointttt_modelnet40 --resume path/to/checkpoint.pth --test
-```
-
-### ScanNet Segmentation
-
-Train PointTTT on ScanNet:
-
-```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python tools/seg_scannet.py --config configs/seg_scannet.yaml --exp_name pointttt_scannet
-```
-
-Evaluate a trained checkpoint:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python tools/seg_scannet.py --config configs/seg_scannet.yaml --exp_name pointttt_scannet --resume path/to/checkpoint.pth --test
-```
-
-## Repository Structure
-
-```text
-PointTTT-code/
-  configs/        Configuration files
-  datasets/       Dataset loaders and preprocessing utilities
-  models/         PointTTT model definitions
-  scripts/        Dataset and experiment helper scripts
-  tools/          Training and evaluation entry points
-```
+    ```bash
+    python scripts/run_seg_scannet.py --gpu 0 --alias scannet --run validate
+    ```
 
 ## Acknowledgement
 
-This implementation is adapted from [Point-Mamba](https://github.com/IRMVLab/Point-Mamba). We thank the authors for releasing their codebase.
+PointTTT was developed from the octree-based point cloud learning pipeline used
+by Point-Mamba and related OCNN/OctFormer tooling. 
+
+We thank the authors of Point-Mamba, OCNN, OctFormer, and the original TTT
+implementation for making their work available to the community.
