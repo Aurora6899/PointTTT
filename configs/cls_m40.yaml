@@ -8,7 +8,7 @@ SOLVER:
   run: train
   type: adamw
   best_val: max:accu
-  logdir: logs/modelnet40/pointttt/fewshot_10way_20shot/6
+  logdir: logs/modelnet40/Pointttt_cls/pointttt
 
   max_epoch: 300
   test_every_epoch: 1
