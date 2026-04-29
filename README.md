@@ -15,7 +15,7 @@
 - Gating Bi-TTTLayer for bidirectional context modeling on serialized point clouds.
 - Feature Enhancement Projector for local geometric and channel interaction modeling.
 - Adaptive Serialization Router for selecting among Z-order, transposed Z-order, Hilbert, and transposed Hilbert serialization strategies.
-- Experiments for ModelNet40 classification and ScanNet semantic segmentation.
+- Experiments for ModelNet40 3D object classification (97.4% Accuracy) and ScanNet semantic segmentation (77.6% mIoU).
 
 ## 1. Environment
 The code has been tested on Ubuntu 20.04 with 4 A40 GPUs (48GB memory).
