@@ -6,7 +6,7 @@
 SOLVER:
   gpu: 0,1,2,3
   run: train
-  logdir: logs/scannetv2/PointTTT_seg/OctreeTTT2-train-1_29
+  logdir: logs/scannetv2/PointTTT_seg/
   best_val: max:mIoU_part
 
   ckpt_num: 200
@@ -19,7 +19,6 @@ SOLVER:
   type: adamw_attn
 
   lr: 0.0001
-  #lr: 0.0001
   lr_type: step_warmup
   milestones: (360,520)
   dist_url: tcp://localhost:10001  # for distributed training
@@ -29,7 +28,6 @@ DATA:
     name: scannet
 
     # octree building
-    #depth: 11
     depth: 11
     full_depth: 2
 
@@ -47,8 +45,7 @@ DATA:
     # data loading
     location: data/scannet.npz/train
     filelist: data/scannet.npz/scannetv2_train_npz.txt #1201
-    #filelist: data/scannet.npz/scannetv2_train_val_npz.txt #1513
-    #filelist: data/scannet.npz/spilt/scannetv2_train_npz-7.txt #120
+
     batch_size: 2
     shuffle: True
     num_workers: 4
