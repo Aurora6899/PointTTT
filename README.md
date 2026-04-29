@@ -90,7 +90,7 @@ The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
     python scripts/run_seg_scannet.py --gpu 0,1,2,4 --alias scannet --port 10001
     ```
 
-3. **Evaluate**: Run the following command to get the per-point predictions for the validation dataset with a voting strategy. And after voting, the mIoU is 77.6 on the validation dataset.Checkpoints will be released later.
+3. **Evaluate**: Run the following command to get the per-point predictions for the validation dataset with a voting strategy. And after voting, the mIoU is 77.6 on the validation dataset. Checkpoints will be released later.
 
     ```bash
     python scripts/run_seg_scannet.py --gpu 0 --alias scannet --run validate
