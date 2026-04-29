@@ -95,11 +95,3 @@ The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
     ```bash
     python scripts/run_seg_scannet.py --gpu 0 --alias scannet --run validate
     ```
-
-## Acknowledgement
-
-PointTTT was developed from the octree-based point cloud learning pipeline used
-by Point-Mamba and related OCNN/OctFormer tooling. 
-
-We thank the authors of Point-Mamba, OCNN, OctFormer, and the original TTT
-implementation for making their work available to the community.
