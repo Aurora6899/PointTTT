@@ -42,7 +42,7 @@ The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
     python tools/cls_modelnet.py
     ```
 
-2. **Train**: Run the following command to train the network with 1 GPU. The classification accuracy on the testing set without voting is 92.7%. The code for Point Mamba(C) will be released in another branch later.
+2. **Train**: Run the following command to train the network with 1 GPU. The classification accuracy on the testing set without voting is 97.4%. 
    Checkpoints will be released later.
     ```bash
     python classification.py --config configs/cls_m40.yaml SOLVER.gpu 0,
@@ -90,7 +90,7 @@ The code has been tested on Ubuntu 20.04 with 4 Nvidia A40 GPUs (48GB memory).
     python scripts/run_seg_scannet.py --gpu 0,1,2,4 --alias scannet --port 10001
     ```
 
-3. **Evaluate**: Run the following command to get the per-point predictions for the validation dataset with a voting strategy. And after voting, the mIoU is 77.6 on the validation dataset.
+3. **Evaluate**: Run the following command to get the per-point predictions for the validation dataset with a voting strategy. And after voting, the mIoU is 77.6 on the validation dataset.Checkpoints will be released later.
 
     ```bash
     python scripts/run_seg_scannet.py --gpu 0 --alias scannet --run validate
