@@ -49,7 +49,7 @@ The code has been tested on Ubuntu 20.04 with 4 A40 GPUs (48GB memory).
 3. **ModelNet40** few-shot splits:
 
 - The few-shot setting follows Point-BERT. Please download the ModelNet few-shot split files from the Point-BERT dataset instructions: [Point-BERT DATASET.md](https://github.com/Julie-tang00/Point-BERT/blob/master/DATASET.md).
-- After downloading the splits, organize them to match the paths used in `configs/cls_m40.yaml`, for example `data/ModelNet40/ModelNetFewshot/10way_20shot/6_train.txt` and `data/ModelNet40/ModelNetFewshot/10way_20shot/6_test.txt`.
+- After downloading the splits, organize them to match the paths used in `configs/cls_m40.yaml`.
 ## 3. ScanNet Segmentation
 1. **Data**: Download the data from the
    [ScanNet benchmark](https://kaldir.vc.in.tum.de/scannet_benchmark/).
