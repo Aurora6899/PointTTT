@@ -1,0 +1,7 @@
+# Optional dependencies for SUN RGB-D detection only.
+# Use the local OctFormer mmdetection3d v1.0.0rc5 checkout when available.
+mmcv-full==1.7.2
+mmdet==2.26.0
+mmsegmentation==0.29.1
+MinkowskiEngine==0.5.4
+
