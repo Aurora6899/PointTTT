@@ -17,28 +17,22 @@ and reverse hidden-state adaptation and fuses the aligned representations with
 lightweight learnable gates. Its Adaptive Serialization Router (ASR) selects
 among locality-preserving Z-order and Hilbert serialization variants according
 to each input point cloud.
-
-The paper is available at [PointTTT_ZS.pdf](./PointTTT_ZS.pdf). Some source
-files and configuration entries retain the internal implementation name
-`PointMamba`; references to the proposed model in this README use
-**PointTTT** consistently.
-
 ### Paper-reported results
 
 All PointTTT results in the paper use fully supervised training from scratch
 without external pre-trained weights. Classification results are reported
 without voting.
 
-| Task | Dataset / protocol | Paper metric | PointTTT result | Params | FLOPs |
-| --- | --- | --- | ---: | ---: | ---: |
-| Object classification | ScanObjectNN OBJ-BG | OA | 93.1% | 2.2M | 1.08G |
-| Object classification | ScanObjectNN OBJ-ONLY | OA | 90.5% | 2.2M | 1.08G |
-| Object classification | ScanObjectNN PB-T50-RS | OA | 84.5% | 2.2M | 1.08G |
-| Object classification | ModelNet40 | OA | 97.4% | 2.2M | 1.08G |
-| Object classification | ShapeNet55 | OA | 91.2% | 2.2M | 1.36G |
-| Part segmentation | ShapeNetPart | class / instance mIoU | 84.2% / 87.1% | 38.7M | - |
-| Semantic segmentation | ScanNet validation / test | mIoU | 77.6% / 77.3% | 38.7M | - |
-| 3D object detection | SUN RGB-D | mAP@0.25 / mAP@0.50 | 68.5% / 50.1% | - | - |
+| Task | Dataset / protocol | Paper metric | PointTTT result |
+| --- | --- | --- | ---: |
+| Object classification | ScanObjectNN OBJ-BG | OA | 93.1% |
+| Object classification | ScanObjectNN OBJ-ONLY | OA | 90.5% |
+| Object classification | ScanObjectNN PB-T50-RS | OA | 84.5% |
+| Object classification | ModelNet40 | OA | 97.4% |
+| Object classification | ShapeNet55 | OA | 91.2% |
+| Part segmentation | ShapeNetPart | class / instance mIoU | 84.2% / 87.1% |
+| Semantic segmentation | ScanNet validation / test | mIoU | 77.6% / 77.3% |
+| 3D object detection | SUN RGB-D | mAP@0.25 / mAP@0.50 | 68.5% / 50.1% |
 
 For supervised few-shot classification on ModelNet40, PointTTT achieves
 `97.0 ± 2.6`, `99.1 ± 0.6`, `93.8 ± 1.2`, and `97.3 ± 1.7` accuracy for 5-way
