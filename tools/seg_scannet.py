@@ -132,7 +132,7 @@ def save_npz(point_cloud, filename):
 
 
 def align_to_axis(filename_ply, vertex):
-  filename = filename_ply.replace(suffix, '.txt')
+  filename = filename_ply.replace(suffix, '.txt')#把.ply换成.txt
   with open(filename) as fid:
     for line in fid:
       (key, val) = line.split(" = ")
