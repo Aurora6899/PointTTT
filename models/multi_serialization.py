@@ -2,16 +2,16 @@ import torch
 from typing import Optional, Union
 
 class MultiKeyLUT:
-    """Lookup tables for the serialization modes used by PointTTT ASR."""
+    """扩展的多序列化方法KeyLUT"""
     
     def __init__(self):
-        # Base lookup tensors.
+        # 复用原有的基础设置
         r256 = torch.arange(256, dtype=torch.int64)
         r512 = torch.arange(512, dtype=torch.int64)
         zero = torch.zeros(256, dtype=torch.int64)
         device = torch.device('cpu')
         
-        # 1. Z-order.
+        # 1. Z-order (原始方法)
         self._z_encode = {device: (self.xyz2key_z_order(r256, zero, zero, 8),
                                    self.xyz2key_z_order(zero, r256, zero, 8),
                                    self.xyz2key_z_order(zero, zero, r256, 8))}
@@ -23,7 +23,7 @@ class MultiKeyLUT:
                                         self.xyz2key_trans_z_order(zero, zero, r256, 8))}
         self._trans_z_decode = {device: self.key2xyz_trans_z_order(r512, 9)}
         
-        # 3. Hilbert, implemented with a lightweight approximation.
+        # 3. Hilbert - 先使用简化版本
         self._hilbert_encode = {device: (self.xyz2key_hilbert_simple(r256, zero, zero, 8),
                                         self.xyz2key_hilbert_simple(zero, r256, zero, 8),
                                         self.xyz2key_hilbert_simple(zero, zero, r256, 8))}
@@ -36,7 +36,7 @@ class MultiKeyLUT:
         self._trans_hilbert_decode = {device: self.key2xyz_trans_hilbert_simple(r512, 9)}
 
     def get_encode_lut(self, method='z_order', device=torch.device('cpu')):
-        """Return the encode lookup table for one serialization method."""
+        """获取编码查找表"""
         lut_dict = {
             'z_order': self._z_encode,
             'trans_z': self._trans_z_encode, 
@@ -51,7 +51,7 @@ class MultiKeyLUT:
         return lut_dict[method][device]
 
     def get_decode_lut(self, method='z_order', device=torch.device('cpu')):
-        """Return the decode lookup table for one serialization method."""
+        """获取解码查找表"""
         lut_dict = {
             'z_order': self._z_decode,
             'trans_z': self._trans_z_decode,
@@ -65,19 +65,19 @@ class MultiKeyLUT:
         
         return lut_dict[method][device]
 
-    # === Z-order ===
+    # === Z-order (原始方法) ===
     def xyz2key_z_order(self, x, y, z, depth):
-        """Encode coordinates with xyz bit interleaving."""
+        """原始Z-order编码: xyz位交错"""
         key = torch.zeros_like(x)
         for i in range(depth):
             mask = 1 << i
-            key = (key | ((x & mask) << (2 * i + 2)) |
-                         ((y & mask) << (2 * i + 1)) |
-                         ((z & mask) << (2 * i + 0)))
+            key = (key | ((x & mask) << (2 * i + 2)) |  # x最高位
+                         ((y & mask) << (2 * i + 1)) |  # y中间位
+                         ((z & mask) << (2 * i + 0)))   # z最低位
         return key
 
     def key2xyz_z_order(self, key, depth):
-        """Decode a Z-order key."""
+        """原始Z-order解码"""
         x = torch.zeros_like(key)
         y = torch.zeros_like(key)
         z = torch.zeros_like(key)
@@ -89,48 +89,48 @@ class MultiKeyLUT:
 
     # === Trans Z-order ===
     def xyz2key_trans_z_order(self, x, y, z, depth):
-        """Encode coordinates with zyx bit interleaving."""
+        """Trans Z-order编码: zyx位交错"""
         key = torch.zeros_like(x)
         for i in range(depth):
             mask = 1 << i
-            key = (key | ((z & mask) << (2 * i + 2)) |
-                         ((y & mask) << (2 * i + 1)) |
-                         ((x & mask) << (2 * i + 0)))
+            key = (key | ((z & mask) << (2 * i + 2)) |  # z最高位
+                         ((y & mask) << (2 * i + 1)) |  # y中间位
+                         ((x & mask) << (2 * i + 0)))   # x最低位
         return key
 
     def key2xyz_trans_z_order(self, key, depth):
-        """Decode a transposed Z-order key."""
+        """Trans Z-order解码"""
         x = torch.zeros_like(key)
         y = torch.zeros_like(key)
         z = torch.zeros_like(key)
         for i in range(depth):
-            z = z | ((key & (1 << (3 * i + 2))) >> (2 * i + 2))
-            y = y | ((key & (1 << (3 * i + 1))) >> (2 * i + 1))
-            x = x | ((key & (1 << (3 * i + 0))) >> (2 * i + 0))
+            z = z | ((key & (1 << (3 * i + 2))) >> (2 * i + 2))  # z从最高位提取
+            y = y | ((key & (1 << (3 * i + 1))) >> (2 * i + 1))  # y从中间位提取
+            x = x | ((key & (1 << (3 * i + 0))) >> (2 * i + 0))  # x从最低位提取
         return x, y, z
 
-    # === Lightweight Hilbert approximation ===
+    # === 简化版Hilbert曲线 ===
     def xyz2key_hilbert_simple(self, x, y, z, depth):
-        """Encode coordinates with a lightweight 3D Hilbert approximation."""
+        """简化版3D Hilbert曲线编码 - 避免索引问题"""
         key = torch.zeros_like(x)
         for i in range(depth):
-            # Extract the coordinate bit at the current level.
+            # 提取当前层的坐标位
             x_bit = (x >> i) & 1
             y_bit = (y >> i) & 1
             z_bit = (z >> i) & 1
             
-            # Approximate the Hilbert transform without large lookup tables.
+            # 简化的Hilbert变换（避免复杂的查找表）
             hilbert_code = self._simple_hilbert_transform(x_bit, y_bit, z_bit, i)
             key = key | (hilbert_code << (3 * i))
         return key
 
     def key2xyz_hilbert_simple(self, key, depth):
-        """Decode the lightweight 3D Hilbert approximation."""
+        """简化版3D Hilbert曲线解码"""
         x = torch.zeros_like(key)
         y = torch.zeros_like(key)
         z = torch.zeros_like(key)
         for i in range(depth):
-            hilbert_code = (key >> (3 * i)) & 7
+            hilbert_code = (key >> (3 * i)) & 7  # 提取3位
             x_bit, y_bit, z_bit = self._simple_hilbert_inverse(hilbert_code, i)
             x = x | (x_bit << i)
             y = y | (y_bit << i)
@@ -138,12 +138,13 @@ class MultiKeyLUT:
         return x, y, z
 
     def _simple_hilbert_transform(self, x, y, z, level):
-        """Approximate 3D Hilbert transform using Gray-code operations."""
+        """简化的3D Hilbert变换 - 使用数学运算而非查找表"""
+        # 基于Gray码的简化Hilbert变换
         gray_x = x ^ (x >> 1)
         gray_y = y ^ (y >> 1) 
         gray_z = z ^ (z >> 1)
         
-        # Rotate the coordinate bit order across levels.
+        # 根据level进行不同的组合
         if level % 3 == 0:
             return gray_x * 4 + gray_y * 2 + gray_z
         elif level % 3 == 1:
@@ -152,7 +153,8 @@ class MultiKeyLUT:
             return gray_y * 4 + gray_z * 2 + gray_x
 
     def _simple_hilbert_inverse(self, hilbert_code, level):
-        """Inverse of the lightweight 3D Hilbert approximation."""
+        """简化的3D Hilbert逆变换"""
+        # 提取各个位
         if level % 3 == 0:
             gray_x = (hilbert_code >> 2) & 1
             gray_y = (hilbert_code >> 1) & 1
@@ -166,7 +168,7 @@ class MultiKeyLUT:
             gray_z = (hilbert_code >> 1) & 1
             gray_x = hilbert_code & 1
         
-        # Inverse Gray-code transform.
+        # Gray码逆变换
         x = gray_x ^ (gray_x >> 1)
         y = gray_y ^ (gray_y >> 1)
         z = gray_z ^ (gray_z >> 1)
@@ -175,23 +177,24 @@ class MultiKeyLUT:
 
     # === Trans Hilbert ===
     def xyz2key_trans_hilbert_simple(self, x, y, z, depth):
-        """Apply the lightweight Hilbert transform after coordinate transposition."""
+        """Trans Hilbert: 坐标转置后应用简化Hilbert"""
+        # 坐标转置: (x,y,z) -> (z,x,y)
         return self.xyz2key_hilbert_simple(z, x, y, depth)
 
     def key2xyz_trans_hilbert_simple(self, key, depth):
-        """Decode a transposed Hilbert key."""
+        """Trans Hilbert解码"""
         z, x, y = self.key2xyz_hilbert_simple(key, depth)
-        return x, y, z
+        return x, y, z  # 转置回来: (z,x,y) -> (x,y,z)
 
 
-# Global lookup-table instance.
+# 全局实例
 _multi_key_lut = MultiKeyLUT()
 
 
 def multi_xyz2key(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor,
                   b: Optional[Union[torch.Tensor, int]] = None, 
                   depth: int = 16, method: str = 'z_order'):
-    """Unified coordinate-to-key interface for PointTTT serialization modes."""
+    """多种序列化方法的统一接口"""
     
     EX, EY, EZ = _multi_key_lut.get_encode_lut(method, x.device)
     x, y, z = x.long(), y.long(), z.long()
@@ -212,7 +215,7 @@ def multi_xyz2key(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor,
 
 
 def multi_key2xyz(key: torch.Tensor, depth: int = 16, method: str = 'z_order'):
-    """Unified key-to-coordinate interface for PointTTT serialization modes."""
+    """多种序列化方法的统一解码接口"""
     
     DX, DY, DZ = _multi_key_lut.get_decode_lut(method, key.device)
     x, y, z = torch.zeros_like(key), torch.zeros_like(key), torch.zeros_like(key)

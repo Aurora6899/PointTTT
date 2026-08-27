@@ -1,10 +1,3 @@
-"""TTT-Linear layers used by PointTTT.
-
-This module keeps the original sequence-modeling interfaces needed by the TTT
-implementation, while PointTTT imports only `TTTConfig` and `TTTLinear` for
-octree-serialized point cloud features.
-"""
-
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Union
@@ -24,7 +17,15 @@ from transformers.modeling_outputs import (
 )
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import ModelOutput, logging
-from transformers.utils.import_utils import is_causal_conv1d_available
+try:
+    from transformers.utils.import_utils import is_causal_conv1d_available
+except ImportError:
+    # transformers==4.35.2 (pinned by this project) does not expose this helper.
+    # Keep the availability check compatible with both old and new releases.
+    from importlib.util import find_spec
+
+    def is_causal_conv1d_available():
+        return find_spec("causal_conv1d") is not None
 
 if is_causal_conv1d_available():
     from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
@@ -127,7 +128,7 @@ class TTTConfig(PretrainedConfig):
             these scaling strategies behave:
             https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/. This is an
             experimental feature, subject to breaking API changes in future versions.
-        use_gate (`bool`, *optional*, defaults to `False`): whether to use gating in the sequence backbone
+        use_gate (`bool`, *optional*, defaults to `False`): whether use gating in Mamba backbone
         share_qk (`bool`, *optional*, defaults to `False`): whether share Q/K projection matrix
         ttt_layer_type (`str`, *optional*, defaults to `"linear"`): ttt block type, "linear" or "mlp", stands for TTT-Linear and TTT-MLP
         ttt_base_lr (`float`, *optional*, defaults to 1.0): base learning rate for TTT learner
@@ -636,7 +637,7 @@ class TTTBase(nn.Module):
         self._init_ttt_lr_gate()
         self._init_ttt_ln()
 
-        # use gating in the sequence backbone
+        # use gating as in Mamba backbone
         self.use_gate = config.use_gate
         if self.use_gate:
             self.g_proj = nn.Linear(self.width, self.width, bias=False)
@@ -645,7 +646,7 @@ class TTTBase(nn.Module):
 
     def _init_qkvo_proj(self):
         self.q_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
-        # share Q/K projection in the sequence backbone
+        # we share Q/K projection when using Mamba backbone
         if not self.share_qk:
             self.k_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
         self.v_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
@@ -868,7 +869,7 @@ class TTTBase(nn.Module):
 
         XQ, XK, XV = self.get_qkv_projections(hidden_states, cache_params=cache_params)
 
-        # Generate position ids when they are not provided.
+        # 代码新增当未提供 position_ids 时自动生成（与模型解码时的行为一致）
         if position_ids is None:
             seqlen_offset = cache_params.seqlen_offset if cache_params is not None else 0
             position_ids = torch.arange(
