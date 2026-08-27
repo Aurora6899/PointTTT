@@ -1,0 +1,11 @@
+BASE:
+  - configs/cls_scanobjectnn_objbg.yaml
+
+SOLVER:
+  logdir: logs/scanobjectnn/objonly
+
+DATA:
+  train:
+    h5_file: data/ScanObjectNN/main_split_nobg/training_objectdataset.h5
+  test:
+    h5_file: data/ScanObjectNN/main_split_nobg/test_objectdataset.h5

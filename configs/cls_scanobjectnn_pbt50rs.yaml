@@ -1,0 +1,11 @@
+BASE:
+  - configs/cls_scanobjectnn_objbg.yaml
+
+SOLVER:
+  logdir: logs/scanobjectnn/pbt50rs
+
+DATA:
+  train:
+    h5_file: data/ScanObjectNN/main_split/training_objectdataset_augmentedrot_scale75.h5
+  test:
+    h5_file: data/ScanObjectNN/main_split/test_objectdataset_augmentedrot_scale75.h5

@@ -1,0 +1,78 @@
+SOLVER:
+  gpu: 0,
+  run: train
+  type: adamw
+  best_val: max:accu
+  logdir: logs/scanobjectnn/objbg
+  max_epoch: 300
+  test_every_epoch: 1
+  log_per_iter: 20
+  lr: 0.0001
+  lr_type: step
+  weight_decay: 0.05
+  milestones: (120,160)
+  ckpt_num: 20
+  # Optional ShapeNet55 classification checkpoint. Only model.backbone is
+  # loaded; the ScanObjectNN 15-class head is initialized from scratch.
+  pretrained: ''
+
+DATA:
+  train:
+    name: scanobjectnn
+    split: train
+    h5_file: data/ScanObjectNN/main_split/training_objectdataset.h5
+    # Direct HDF5 mode. For Point-BERT-style 1024-point sampling, set
+    # num_points to 1024 and sampling to pointbert in both train and test.
+    num_points: 2048
+    sampling: none
+    pointbert_candidate_points: 1200
+    cache_fps: True
+    normalize: False
+    depth: 6
+    full_depth: 2
+    orient_normal: ''
+    distort: True
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.25
+    uniform: False
+    jitter: 0.1
+    flip: (0.0, 0.0, 0.0)
+    batch_size: 32
+    shuffle: True
+    pin_memory: False
+    num_workers: 4
+
+  test:
+    name: scanobjectnn
+    split: test
+    h5_file: data/ScanObjectNN/main_split/test_objectdataset.h5
+    num_points: 2048
+    sampling: none
+    pointbert_candidate_points: 1200
+    cache_fps: True
+    normalize: False
+    depth: 6
+    full_depth: 2
+    orient_normal: ''
+    distort: False
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.0
+    uniform: False
+    jitter: 0.0
+    flip: (0.0, 0.0, 0.0)
+    batch_size: 16
+    shuffle: False
+    pin_memory: False
+    num_workers: 2
+
+MODEL:
+  name: pointmamba_cls
+  nout: 15
+  channel: 3
+  nempty: True
+  feature: P
+
+LOSS:
+  num_class: 15

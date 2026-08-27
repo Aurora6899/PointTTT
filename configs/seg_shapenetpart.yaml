@@ -1,0 +1,111 @@
+# ShapeNetPart supervised part segmentation from scratch.
+# Protocol: official HDF5 train+val (14007) / test (2874), 2048 points,
+# 300 epochs, global batch size 16 on two GPUs, and Point-BERT metrics.
+
+SOLVER:
+  gpu: 0,1,
+  run: train
+  logdir: logs/shapenetpart/from_scratch_2048
+  best_val: max:mIoUI
+  # Periodic validation remains single-pass. After training, reload the model
+  # selected by mIoUI and run the independent Utonia ten-vote TTA evaluation.
+  final_test_best: True
+
+  type: adamw
+  weight_decay: 0.05
+  # thsolver multiplies this value by world_size. With two GPUs the effective
+  # learning rate is 5e-4, matching the Point-BERT part-segmentation protocol.
+  lr: 0.00025
+  lr_type: cos_warmup
+  warmup_epoch: 10
+  warmup_init: 0.001
+  # cos_warmup interprets lr_min as a ratio: 0.002 * 5e-4 = 1e-6.
+  lr_min: 0.002
+
+  max_epoch: 300
+  test_every_epoch: 1
+  log_per_iter: 20
+  ckpt_num: 20
+  clip_grad: -1.0
+  dist_url: tcp://localhost:10003
+
+DATA:
+  train:
+    name: shapenetpart
+    location: data/shapenet_part_seg_hdf5_data/hdf5_data
+    split: trainval
+
+    # Directly keep all HDF5 points; no PointNet++ CUDA FPS is required.
+    num_points: 2048
+    sampling: none
+    normalize: True
+
+    # Point-BERT ScaleAndTranslate augmentation.
+    distort: True
+    scale_low: 0.6666666667
+    scale_high: 1.5
+    translate_range: 0.2
+    octree_bound: 0.999
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.0
+    uniform: False
+    jitter: 0.0
+    flip: (0.0, 0.0, 0.0)
+    orient_normal: ''
+
+    # Four segmentation stages operate at octree depths 6, 5, 4, and 3.
+    depth: 8
+    full_depth: 2
+    batch_size: 8
+    shuffle: True
+    pin_memory: True
+    num_workers: 4
+
+  test:
+    name: shapenetpart
+    location: data/shapenet_part_seg_hdf5_data/hdf5_data
+    split: test
+    num_points: 2048
+    sampling: none
+    normalize: True
+
+    distort: False
+    scale_low: 0.6666666667
+    scale_high: 1.5
+    translate_range: 0.2
+    octree_bound: 0.999
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.0
+    uniform: False
+    jitter: 0.0
+    flip: (0.0, 0.0, 0.0)
+    orient_normal: ''
+
+    depth: 8
+    full_depth: 2
+    batch_size: 8
+    shuffle: False
+    pin_memory: True
+    num_workers: 2
+    # Used only by the automatic final-best evaluation (or SOLVER.run
+    # test_tta); ordinary SOLVER.run test remains a single-pass evaluation.
+    tta: True
+
+MODEL:
+  name: pointmamba_seg
+  # The four-stage PointMambaSeg_base is configured in builder.py with
+  # channels [96, 192, 384, 384] and blocks [2, 2, 18, 2].
+  feature: P
+  channel: 3
+  nout: 50
+  nempty: True
+  interp: nearest
+  sync_bn: True
+  find_unused_parameters: False
+
+LOSS:
+  # ShapeNetPart's valid part ids are 0--49; do not mask part 0.
+  mask: -1
+  num_class: 50
