@@ -9,14 +9,6 @@
 <div  align="center">    
  <img src="PointTTT.png" width = ""  align=center />
 </div>
-
-PointTTT introduces Test-Time Training (TTT) into 3D point cloud analysis. It
-uses input-dependent hidden-state optimization for linear-complexity
-"infer-while-adapting" sequence modeling. The PointTTT Block performs forward
-and reverse hidden-state adaptation and fuses the aligned representations with
-lightweight learnable gates. Its Adaptive Serialization Router (ASR) selects
-among locality-preserving Z-order and Hilbert serialization variants according
-to each input point cloud.
 ### Paper-reported results
 
 All PointTTT results in the paper use fully supervised training from scratch
@@ -447,8 +439,6 @@ Project of the Department of Education of Yunnan Province (Nos. KC-252512912
 and 2026Y0184).
 
 The PointTTT implementation builds on the following projects:
-- Mamba ([paper](https://arxiv.org/abs/2312.00752), [code](https://github.com/state-spaces/mamba))
-- OctFormer ([paper](https://arxiv.org/abs/2305.03045), [code](https://github.com/octree-nn/octformer))
 - Vision Mamba([paper](https://arxiv.org/abs/2401.09417),[code](https://github.com/hustvl/Vim))
 - Point Cloud Transformer([paper](https://arxiv.org/abs/2012.09688), [code](https://github.com/MenghaoGuo/PCT))
 
