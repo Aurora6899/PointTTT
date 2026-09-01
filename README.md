@@ -312,11 +312,6 @@ torchrun --nproc_per_node=2 --master_port=29501 \
   detection.py configs/det_sunrgbd.py --launcher pytorch \
   --cfg-options runner.max_epochs=18
 
-Checkpoints, copied configs, TensorBoard events and text logs are written to
-`work_dirs/pointttt_sunrgbd/`. Validation runs every epoch and reports
-per-class AP/recall plus the main `mAP_0.25` and `mAP_0.50` metrics.
-PointTTT achieves 68.5% mAP@0.25 and 50.1% mAP@0.50 in the paper.
-
 ## 8. PartNetE Part Segmentation (Repository Extension)
 
 PartNetE is not evaluated or reported in the PointTTT paper. This section
@@ -357,9 +352,3 @@ interrupted run. The best validation checkpoint is saved separately as
 The PointTTT study acknowledges support from the Scientific Research Fund
 Project of the Department of Education of Yunnan Province (Nos. KC-252512912
 and 2026Y0184).
-
-The PointTTT implementation builds on the following projects:
-- Vision Mamba([paper](https://arxiv.org/abs/2401.09417),[code](https://github.com/hustvl/Vim))
-- Point Cloud Transformer([paper](https://arxiv.org/abs/2012.09688), [code](https://github.com/MenghaoGuo/PCT))
-
-Thanks for their wonderful works!
