@@ -292,12 +292,10 @@ PointTTT follows the paper's protocol: 10 classes, 100,000 XYZRGB points,
 depth-12 octrees at 0.01 m, FCAF3D, an 18-epoch schedule, and evaluation at 3D
 IoU 0.25 and 0.50. Within FCAF3D, PointTTT serves as the four-stage backbone with
 channels `[96, 192, 384, 384]` and blocks `[2, 2, 18, 2]`.
-
-Use the existing `mamba` environment. It already contains the compiled OCNN,
+It already contains the compiled OCNN,
 MMCV and MinkowskiEngine operators; the compatible mmsegmentation version is:
 
 ```bash
-conda activate mamba
 python -m pip install mmsegmentation==0.29.1
 ```
 
