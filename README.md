@@ -298,15 +298,6 @@ MMCV and MinkowskiEngine operators; the compatible mmsegmentation version is:
 ```bash
 python -m pip install mmsegmentation==0.29.1
 ```
-
-The PointTTT detection launcher reuses the MMDetection3D installation in the
-sibling OctFormer checkout at
-`../octformer-master/mmdetection3d`. If it is elsewhere, export its root:
-
-```bash
-export MMDET3D_ROOT=/path/to/mmdetection3d
-```
-
 Before training, validate all 10335 point files and the official split:
 
 ```bash
@@ -320,80 +311,11 @@ CUDA_VISIBLE_DEVICES=0,1 OMP_NUM_THREADS=8 \
 torchrun --nproc_per_node=2 --master_port=29501 \
   detection.py configs/det_sunrgbd.py --launcher pytorch \
   --cfg-options runner.max_epochs=18
-```
-
-PointTTT is trained with 8 scenes per GPU. With two GPUs,
-`cumulative_iters=2` gives an effective batch of `8 x 2 x 2 = 32`, matching
-the reported effective batch size while retaining the learning rate `1e-3`.
-If a 24 GB GPU runs out of memory, use four scenes per GPU and accumulate four
-iterations; the effective batch and learning rate remain unchanged:
-
-```bash
-CUDA_VISIBLE_DEVICES=0,1 OMP_NUM_THREADS=8 \
-torchrun --nproc_per_node=2 --master_port=29501 \
-  detection.py configs/det_sunrgbd.py --launcher pytorch \
-  --cfg-options data.samples_per_gpu=4 \
-  data.val.samples_per_gpu=4 data.test.samples_per_gpu=4 \
-  optimizer_config.cumulative_iters=4 runner.max_epochs=18
-```
 
 Checkpoints, copied configs, TensorBoard events and text logs are written to
 `work_dirs/pointttt_sunrgbd/`. Validation runs every epoch and reports
 per-class AP/recall plus the main `mAP_0.25` and `mAP_0.50` metrics.
 PointTTT achieves 68.5% mAP@0.25 and 50.1% mAP@0.50 in the paper.
-
-Visualize the supplied checkpoints on six deterministic, class-covering
-validation scenes (inference uses all 100000 points per scene):
-
-```bash
-conda activate mamba
-CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=8 \
-python tools/visualize_sunrgbd_detection.py \
-  --octformer work_dirs/pointttt_sunrgbd/epoch_13.pth \
-  --3det-mamba work_dirs/pointttt_sunrgbd/epoch_12.pth \
-  --pointttt work_dirs/pointttt_sunrgbd/epoch_18.pth
-```
-
-Each scene directory contains the four-panel `comparison.png`, individual
-input/GT/prediction PNGs, numerical boxes and scores in NPZ, and editable PLY
-point clouds/box edges. Results and checkpoint metadata are recorded under
-`visual_results/sunrgbd_detection_comparison/`. Use `--indices 114 2307` for
-explicit zero-based validation indices, `--show-labels` for class text, or
-`--skip-existing` to resume without repeating completed inference.
-
-For the same shaded-sphere appearance as the ShapeNetPart figures, render the
-saved predictions with Mitsuba. This does not rerun detector inference:
-
-```bash
-conda activate mamba
-python tools/render_sunrgbd_detection_mitsuba.py \
-  --render-points 4096 --radius 0.005 --box-radius 0.003 \
-  --width 1600 --height 1200 --spp 128 --dpi 1200
-```
-
-The four panels share the sampled points, normalization, camera, lighting and
-crop. Points are rough-plastic spheres and box edges are solid cylinders on a
-pure-white background. Mitsuba results are written to
-`visual_results/sunrgbd_detection_comparison/mitsuba/`. The default scalar
-variant is safe while both GPUs are training; use `--variant cuda_ad_rgb` only
-when a GPU is free. Use `--scenes 2307_002308` for a single saved scene and
-`--no-titles` for a title-free paper panel.
-
-For dense scene-level figures matching the 3DET-Mamba qualitative layout, use
-all 100000 RGB points with the headless Open3D splat renderer:
-
-```bash
-EGL_PLATFORM=surfaceless python tools/render_sunrgbd_detection_open3d.py \
-  --scenes 2307_002308 1981_001982 0114_000115 0791_000792 \
-  --max-points 0 --point-size 2.0 --line-width 3.0 \
-  --width 1600 --height 1200 --dpi 1200 \
-  --output-dir visual_results/sunrgbd_detection_comparison/open3d_dense_paper
-```
-
-This creates five rows (`Input`, three prediction sets and `GT`) with orange
-prediction boxes and green GT boxes. All rows for a scene share the complete
-point cloud, camera and foreground crop. The assembled figure is
-`comparison_grid.png`.
 
 ## 8. PartNetE Part Segmentation (Repository Extension)
 
