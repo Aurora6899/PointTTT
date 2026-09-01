@@ -311,6 +311,7 @@ CUDA_VISIBLE_DEVICES=0,1 OMP_NUM_THREADS=8 \
 torchrun --nproc_per_node=2 --master_port=29501 \
   detection.py configs/det_sunrgbd.py --launcher pytorch \
   --cfg-options runner.max_epochs=18
+```
 
 ## 8. PartNetE Part Segmentation (Repository Extension)
 
