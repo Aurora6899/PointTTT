@@ -151,34 +151,6 @@ python classification.py \
 PointTTT achieves 91.2% OA without voting, with 2.2M trainable parameters and
 1.36 GFLOPs in the paper.
 
-### Optional supervised transfer experiment (not used for paper results)
-
-The best complete 55-class model is saved to:
-
-```text
-logs/shapenet55/supervised_1024/best_model.pth
-```
-
-The repository additionally allows this checkpoint to initialize ScanObjectNN
-through `SOLVER.pretrained`. This is an optional extension: the paper explicitly
-reports its PointTTT results as training from scratch without external
-pre-trained weights. Only `model.backbone` is loaded; the incompatible 55-class
-head is discarded and the ScanObjectNN 15-class head remains randomly
-initialized. Use a new log directory so that an older fine-tuning checkpoint
-is not resumed by mistake:
-
-```bash
-python classification.py \
-  --config configs/cls_scanobjectnn_pbt50rs.yaml \
-  SOLVER.gpu 0,1, \
-  SOLVER.pretrained logs/shapenet55/supervised_1024/best_model.pth \
-  SOLVER.logdir logs/scanobjectnn/pbt50rs_ft_shapenet55_1024
-```
-
-The same `SOLVER.pretrained` option works with the OBJ_BG and OBJ_ONLY configs.
-An existing `*.solver.tar` in the target log directory takes priority and
-resumes the interrupted ScanObjectNN fine-tuning run, including its optimizer
-and scheduler state.
 
 ## 5. ShapeNetPart Segmentation From Scratch
 
@@ -206,27 +178,6 @@ IoUs. The checkpoint selected by `mIoUI` is saved to
 
 PointTTT achieves 84.2% class-average mIoU and 87.1% instance-average mIoU with
 38.7M trainable parameters in Table 3 of the paper.
-
-The repository also provides an additional ten-vote TTA evaluation after
-training. This extra `final_tta_log.csv` result should not be presented as the
-paper's Table 3 value unless it reproduces the values above. The TTA recipe is:
-identity, identity with `RandomFlip(p=0.5)`, and scales 0.8, 0.85, 0.9, 0.95,
-1.05, 1.1, 1.15, and 1.2. Softmax probabilities are summed before computing
-`test/mIoUI` and `test/mIoUC`; the separate result is appended to
-`logs/shapenetpart/from_scratch_2048/final_tta_log.csv`.
-
-To run only this final TTA for an existing best checkpoint:
-
-```bash
-python segmentation.py \
-  --config configs/seg_shapenetpart.yaml \
-  SOLVER.run test_tta \
-  SOLVER.gpu 0,1, \
-  SOLVER.ckpt logs/shapenetpart/from_scratch_2048/best_model.pth \
-  SOLVER.logdir logs/shapenetpart/from_scratch_2048/tta_eval
-```
-
-Set `SOLVER.final_test_best False` to disable the automatic post-training TTA.
 
 ## 6. ScanNet Segmentation
 
