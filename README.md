@@ -1,6 +1,6 @@
 <div align="center">
 <h1>PointTTT</h1>
-<h3>Test-Time Training for 3D Point Cloud Modeling</h3>
+<h3>Simple Test-Time Training for 3D Point Cloud Modeling</h3>
 </div>
 
 
