@@ -160,7 +160,7 @@ trains on the official train+validation split (14007 shapes), tests on 2874
 shapes, and keeps all 2048 HDF5 points without CUDA FPS.
 
 PointTTT is trained for 300 epochs on four NVIDIA A40 GPUs with a total batch
-size of 32 in the paper. The checked-in per-GPU batch size of 8 matches that
+size of 32. The checked-in per-GPU batch size of 8 matches that
 setting:
 
 ```bash
