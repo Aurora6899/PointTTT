@@ -2,7 +2,7 @@ import torch
 from typing import Optional, Union
 
 class MultiKeyLUT:
-    """扩展的多序列化方法KeyLUT"""
+
     
     def __init__(self):
 
@@ -31,7 +31,7 @@ class MultiKeyLUT:
                                               self.xyz2key_trans_hilbert_simple(zero, zero, r256, 8))}
 
     def get_encode_lut(self, method='z_order', device=torch.device('cpu')):
-        """获取编码查找表"""
+
         lut_dict = {
             'z_order': self._z_encode,
             'trans_z': self._trans_z_encode, 
@@ -47,7 +47,7 @@ class MultiKeyLUT:
 
 
     def xyz2key_z_order(self, x, y, z, depth):
-        """原始Z-order编码: xyz位交错"""
+
         key = torch.zeros_like(x)
         for i in range(depth):
             mask = 1 << i
@@ -58,7 +58,7 @@ class MultiKeyLUT:
 
     # === Trans Z-order ===
     def xyz2key_trans_z_order(self, x, y, z, depth):
-        """Trans Z-order编码: zyx位交错"""
+
         key = torch.zeros_like(x)
         for i in range(depth):
             mask = 1 << i
@@ -69,7 +69,7 @@ class MultiKeyLUT:
 
 
     def xyz2key_hilbert_simple(self, x, y, z, depth):
-        """简化版3D Hilbert曲线编码 - 避免索引问题"""
+
         key = torch.zeros_like(x)
         for i in range(depth):
 
@@ -83,7 +83,7 @@ class MultiKeyLUT:
         return key
 
     def _simple_hilbert_transform(self, x, y, z, level):
-        """简化的3D Hilbert变换 - 使用数学运算而非查找表"""
+
 
         gray_x = x ^ (x >> 1)
         gray_y = y ^ (y >> 1) 
@@ -99,7 +99,7 @@ class MultiKeyLUT:
 
     # === Trans Hilbert ===
     def xyz2key_trans_hilbert_simple(self, x, y, z, depth):
-        """Trans Hilbert: 坐标转置后应用简化Hilbert"""
+
 
         return self.xyz2key_hilbert_simple(z, x, y, depth)
 
@@ -111,7 +111,7 @@ _multi_key_lut = MultiKeyLUT()
 def multi_xyz2key(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor,
                   b: Optional[Union[torch.Tensor, int]] = None, 
                   depth: int = 16, method: str = 'z_order'):
-    """多种序列化方法的统一接口"""
+
     
     EX, EY, EZ = _multi_key_lut.get_encode_lut(method, x.device)
     x, y, z = x.long(), y.long(), z.long()
