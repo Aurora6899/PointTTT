@@ -75,10 +75,10 @@ def load_scene(path, seed):
 
 
 def build_model(checkpoint, device):
-  # PointMamba currently prints every repeated TTT configuration at
+  # PointTTT currently prints every repeated TTT configuration at
   # construction time; suppress that debug-only output in benchmark logs.
   with contextlib.redirect_stdout(io.StringIO()):
-    model = builder.PointMambaSeg_base(
+    model = builder.point_ttt_seg_base(
         in_channels=10, out_channels=21, interp='nearest', nempty=True)
   state_dict = torch.load(checkpoint, map_location='cpu')
   model.load_state_dict(state_dict, strict=True)

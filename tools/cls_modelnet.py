@@ -1,8 +1,6 @@
 
 import os
 import math
-import wget
-import zipfile
 import trimesh
 import argparse
 import trimesh.sample
@@ -26,27 +24,6 @@ parser.add_argument('--normalize', type=str, required=False, default='true',
 args = parser.parse_args()
 abs_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 root_folder = os.path.join(abs_path, 'data/ModelNet40')
-
-
-# def download_m40():
-#   # download via wget
-#   os.makedirs(root_folder, exist_ok=True)
-#   url = 'http://modelnet.cs.princeton.edu/ModelNet40.zip'
-#   filename = os.path.join(root_folder, 'ModelNet40.zip')
-#   if not os.path.exists(filename):
-#     print('-> Download the dataset.')
-#     wget.download(url, filename)
-#
-#   # unzip
-#   flag_floder = os.path.join(root_folder, 'flags')
-#   os.makedirs(flag_floder, exist_ok=True)
-#   flag_file = os.path.join(flag_floder, 'unzip_succ')
-#   if not os.path.exists(flag_file):
-#     print('-> Unzip the dataset.')
-#     with zipfile.ZipFile(filename, 'r') as zip_ref:
-#       zip_ref.extractall(root_folder)
-#     with open(flag_file, 'w') as fid:
-#       fid.write('unzip the data.')
 
 
 def _clean_off_file(filename):
@@ -88,21 +65,6 @@ def get_filelist(root_folder, train=True, suffix='off', ratio=1.0):
   return filelist, category
 
 
-def move_files(src_folder, des_folder, suffix):
-  folders = os.listdir(src_folder)
-  for folder in folders:
-    for subfolder in ['train', 'test']:
-      curr_src_folder = os.path.join(src_folder, folder, subfolder)
-      curr_des_folder = os.path.join(des_folder, folder, subfolder)
-      if not os.path.exists(curr_des_folder):
-        os.makedirs(curr_des_folder)
-      filenames = os.listdir(curr_src_folder)
-      for filename in filenames:
-        if filename.endswith(suffix):
-          os.rename(os.path.join(curr_src_folder, filename),
-                    os.path.join(curr_des_folder, filename))
-
-
 def convert_mesh_to_points():
   print('-> Sample points on meshes.')
   mesh_folder = os.path.join(root_folder, 'ModelNet40')
@@ -118,7 +80,7 @@ def convert_mesh_to_points():
   filelist = train_list + test_list
   flag_file = os.path.join(root_folder, 'flags/clean_off_files')
 
-  # 确保 flags 目录存在
+
   flag_folder = os.path.join(root_folder, 'flags')
   os.makedirs(flag_folder, exist_ok=True)
 

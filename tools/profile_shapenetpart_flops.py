@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(REPO_ROOT))
 
-from models.PointMambaseg import PointMambaSeg
+from models.point_ttt_seg import PointTTTSeg
 
 
 def parse_args():
@@ -54,7 +54,7 @@ def main():
   args = parse_args()
   device = torch.device('cuda:0')
   with contextlib.redirect_stdout(io.StringIO()):
-    model = PointMambaSeg(
+    model = PointTTTSeg(
         in_channels=3,
         out_channels=50,
         channels=[96, 192, 384, 384],
