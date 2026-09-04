@@ -60,7 +60,7 @@ The code has been tested on Ubuntu 20.04.
     ```
 
 2. **Train**: PointTTT uses the standard 9,843/2,468 train/test split and is
-   trained for 300 epochs on two 24 GB RTX 3090 GPUs with a total batch size of 32.
+   trained for 300 epochs with a total batch size of 32.
    The checked-in `cls_m40.yaml` currently points to one few-shot split, so the
    standard file lists must be overridden for the paper's 97.4% OA result.
 
