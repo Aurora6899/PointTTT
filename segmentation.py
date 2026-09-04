@@ -7,7 +7,7 @@ import torch
 import ocnn
 import numpy as np
 from tqdm import tqdm
-from thsolver import Solver
+from thsolver import Solver, get_config
 from thsolver.tracker import AverageTracker
 
 import builder
@@ -15,8 +15,7 @@ from datasets.shapenetpart import (
     SHAPENETPART_CATEGORIES, SHAPENETPART_PARTS,
     SHAPENETPART_UTONIA_TTA, build_shapenetpart_tta_points)
 from datasets.partnete import (
-    PARTNETE_CATEGORIES, PARTNETE_NUM_CLASSES, PARTNETE_NUM_PARTS,
-    PARTNETE_PART_OFFSETS, build_partnete_test_variant,
+    PARTNETE_CATEGORIES, PARTNETE_NUM_CLASSES, build_partnete_test_variant,
     make_partnete_points, partnete_named_part_ids,
     partnete_test_augmentations)
 from datasets.s3dis import (
@@ -33,7 +32,7 @@ from losses import lovasz_softmax_loss
 # Refer: https://github.com/pytorch/pytorch/issues/973
 # torch.multiprocessing.set_sharing_strategy('file_system')
 
-os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'  # 或者 'DETAIL'
+os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
 
 
 def shapenetpart_metric_sums(logit, label, categories, batch_npt):
@@ -143,6 +142,37 @@ def partnete_metric_sums_from_prediction(prediction, label, category):
 
 class SegSolver(Solver):
 
+  @classmethod
+  def update_configs(cls):
+    r'''Registers PointTTT options so YAML/CLI overrides reach the backbone.'''
+    flags = get_config()
+    flags.defrost()
+    flags.MODEL.partition_by_batch = False
+    flags.MODEL.ttt_base_lr = 1.0
+    flags.MODEL.ttt_update_train = True
+    flags.MODEL.ttt_update_test = True
+    flags.MODEL.ttt_patch_size = 64
+    flags.MODEL.ttt_num_heads = 24
+    flags.MODEL.ttt_layer_type = 'linear'
+    # Hierarchical PointTTT is opt-in.  Classification configs and small-object
+    # segmentation therefore keep exactly the historical local-only graph.
+    flags.MODEL.pointttt_hierarchical_enabled = False
+    flags.MODEL.pointttt_hierarchical_stages = []
+    # 0 selects only the final block of each requested stage.  A positive
+    # value additionally selects every N-th block (and always the final one).
+    flags.MODEL.pointttt_hierarchical_block_interval = 0
+    flags.MODEL.pointttt_global_chunk_size = 128
+    flags.MODEL.pointttt_summary_tokens = 1
+    flags.MODEL.pointttt_global_bidirectional = True
+    # Zero gives an exact local-PointTTT function at initialization while the
+    # gate learns how strongly the new global memory should contribute.
+    flags.MODEL.pointttt_global_gate_init = 0.0
+    # Optional local/earlier-phase PointTTT weights.  This is deliberately
+    # separate from SOLVER.ckpt: solver checkpoints still perform exact resume
+    # with optimizer and scheduler state and always take priority.
+    flags.SOLVER.pointttt_pretrained = ''
+    flags.freeze()
+
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
     # TTA is activated only by the final-test entry points below. Periodic
@@ -166,6 +196,29 @@ class SegSolver(Solver):
 
   def get_model(self, flags):
     return builder.get_segmentation_model(flags)
+
+  def config_model(self):
+    r'''Builds the model without dumping its complete module tree to stdout.'''
+    flags = self.FLAGS.MODEL
+    model = self.get_model(flags)
+    model_name = model.__class__.__name__
+    model.cuda(device=self.device)
+    if self.world_size > 1:
+      if flags.sync_bn:
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+      model = torch.nn.parallel.DistributedDataParallel(
+          module=model, device_ids=[self.device],
+          output_device=self.device, broadcast_buffers=False,
+          find_unused_parameters=flags.find_unused_parameters)
+    if self.is_master:
+      total = sum(parameter.numel() for parameter in model.parameters())
+      trainable = sum(
+          parameter.numel() for parameter in model.parameters()
+          if parameter.requires_grad)
+      print(
+          f'Model configured: {model_name} | parameters: {total / 1e6:.2f}M '
+          f'| trainable: {trainable / 1e6:.2f}M')
+    self.model = model
 
   def get_dataset(self, flags):
     return builder.get_segmentation_dataset(flags)
@@ -377,13 +430,19 @@ class SegSolver(Solver):
 
   def load_checkpoint(self):
     r'''Loads the regular solver checkpoint and restores validation history.'''
+    pretrained = str(getattr(
+        self.FLAGS.SOLVER, 'pointttt_pretrained', '')).strip()
+    explicit_ckpt = str(getattr(self.FLAGS.SOLVER, 'ckpt', '')).strip()
+    solver_files = sorted(glob.glob(
+        os.path.join(self.ckpt_dir, '*.solver.tar')))
+    if pretrained and not explicit_ckpt and not solver_files:
+      self.load_pointttt_pretrained(pretrained)
+      return
+
     if not (self.is_semantickitti() or self.is_partnete()):
       return super().load_checkpoint()
 
     ckpt = self.FLAGS.SOLVER.ckpt
-    if not ckpt and self.is_partnete():
-      last_ckpt = os.path.join(self.ckpt_dir, 'last.solver.tar')
-      ckpt = last_ckpt if os.path.isfile(last_ckpt) else ''
     if not ckpt:
       solver_files = sorted(glob.glob(
           os.path.join(self.ckpt_dir, '*.solver.tar')))
@@ -416,6 +475,50 @@ class SegSolver(Solver):
           'next_epoch=%d, scheduler_step=%d' %
           ('PartNetE' if self.is_partnete() else 'SemanticKITTI',
            self.start_epoch - 1, self.start_epoch, scheduler_step))
+
+  def load_pointttt_pretrained(self, checkpoint):
+    r'''Warm-starts a hierarchical phase from local/earlier PointTTT weights.
+
+    Only newly introduced ``hierarchical_pointttt`` tensors may be missing.
+    This prevents ``strict=False`` from silently hiding a broken backbone or
+    segmentation head while allowing Local -> Stage 3 -> Stage 2+3 curricula.
+    '''
+    if not bool(getattr(
+        self.FLAGS.MODEL, 'pointttt_hierarchical_enabled', False)):
+      raise RuntimeError(
+          'SOLVER.pointttt_pretrained requires Hierarchical PointTTT to be enabled.')
+    checkpoint = os.path.abspath(os.path.expanduser(checkpoint))
+    if not os.path.isfile(checkpoint):
+      raise FileNotFoundError(
+          'PointTTT pretrained checkpoint not found: ' + checkpoint)
+
+    trained = torch.load(
+        checkpoint, map_location=torch.device('cuda', self.device))
+    state_dict = trained.get('model_dict', trained) if isinstance(
+        trained, dict) else trained
+    state_dict = {
+        key[len('module.'):] if key.startswith('module.') else key: value
+        for key, value in state_dict.items()
+    }
+    model = self.model.module if self.world_size > 1 else self.model
+    incompatible = model.load_state_dict(state_dict, strict=False)
+    invalid_missing = [
+        key for key in incompatible.missing_keys
+        if '.hierarchical_pointttt.' not in key]
+    if invalid_missing or incompatible.unexpected_keys:
+      raise RuntimeError(
+          'Invalid PointTTT warm-start checkpoint: non-hierarchical missing '
+          f'keys={invalid_missing[:8]}, unexpected '
+          f'keys={incompatible.unexpected_keys[:8]}')
+    if not incompatible.missing_keys:
+      raise RuntimeError(
+          'SOLVER.pointttt_pretrained did not initialize a new hierarchical '
+          'phase; use SOLVER.ckpt for an exact resume instead.')
+    if self.is_master:
+      tqdm.write(
+          '=> Warm-start Hierarchical PointTTT from %s; initialized %d new '
+          'hierarchical tensors.' %
+          (checkpoint, len(incompatible.missing_keys)))
 
   def reset_semantickitti_validation_iterator(self):
     r'''Restarts the finite validation split independently on every rank.'''
@@ -565,7 +668,7 @@ class SegSolver(Solver):
     os.makedirs(self.ckpt_dir, exist_ok=True)
     model_dict = (self.model.module.state_dict() if self.world_size > 1
                   else self.model.state_dict())
-    stem = os.path.join(self.ckpt_dir, 'last')
+    stem = os.path.join(self.ckpt_dir, '%05d' % epoch)
     model_path, solver_path = stem + '.model.pth', stem + '.solver.tar'
     suffix = '.tmp.%d' % os.getpid()
     model_tmp, solver_tmp = model_path + suffix, solver_path + suffix
@@ -575,7 +678,7 @@ class SegSolver(Solver):
         'optimizer_dict': self.optimizer.state_dict(),
         'scheduler_dict': self.scheduler.state_dict(),
         'best_val': self.best_val,
-        'checkpoint_type': 'partnete_last_recovery',
+        'checkpoint_type': 'partnete_epoch_recovery',
     }
     try:
       torch.save(model_dict, model_tmp)
@@ -587,9 +690,10 @@ class SegSolver(Solver):
         if os.path.exists(temporary):
           os.remove(temporary)
 
+    keep = max(1, int(self.FLAGS.SOLVER.ckpt_num))
     solver_files = sorted(glob.glob(
         os.path.join(self.ckpt_dir, '[0-9][0-9][0-9][0-9][0-9].solver.tar')))
-    for old_solver in solver_files:
+    for old_solver in solver_files[:-keep]:
       old_stem = old_solver[:-len('.solver.tar')]
       old_model = old_stem + '.model.pth'
       os.remove(old_solver)
@@ -657,7 +761,7 @@ class SegSolver(Solver):
             'train/lr', self.scheduler.get_last_lr()[0], epoch)
 
       save_every = max(
-          1, int(getattr(self.FLAGS.SOLVER, 'save_every_epoch', 1)))
+          1, int(getattr(self.FLAGS.SOLVER, 'save_every_epoch', 10)))
       if epoch % save_every == 0 or epoch == self.FLAGS.SOLVER.max_epoch:
         self.save_partnete_recovery_checkpoint(epoch)
       if self.world_size > 1:
@@ -672,14 +776,8 @@ class SegSolver(Solver):
   def train_step(self, batch):
     batch = self.process_batch(batch, self.FLAGS.DATA.train)
     logit, label = self.model_forward(batch)
-    if self.is_partnete():
-      categories = batch['label'].to(logit.device)
-      batch_npt = batch['points'].batch_npt.to(logit.device)
-      loss = self.partnete_loss_function(logit, label, categories, batch_npt)
-      accu = self.partnete_accuracy(logit, label, categories, batch_npt)
-    else:
-      loss = self.loss_function(logit, label)
-      accu = self.accuracy(logit, label)
+    loss = self.loss_function(logit, label)
+    accu = self.accuracy(logit, label)
     return {'train/loss': loss, 'train/accu': accu}
 
   def test_step(self, batch):
@@ -834,13 +932,8 @@ class SegSolver(Solver):
     if not np.all(vote_count > 0):
       raise RuntimeError('PartNetE inference did not cover every input point.')
     probability = vote_sum / vote_count[:, None]
-    start = PARTNETE_PART_OFFSETS[category]
-    end = PARTNETE_PART_OFFSETS[category + 1]
-    valid_probability = probability[:, start:end]
-    prediction = valid_probability.argmax(axis=1) + start
-    valid_probability = valid_probability / np.maximum(
-        valid_probability.sum(axis=1, keepdims=True), 1.0e-12)
-    true_probability = valid_probability[np.arange(npt), label - start]
+    prediction = probability.argmax(axis=1)
+    true_probability = probability[np.arange(npt), label]
     loss = float(-np.log(np.maximum(true_probability, 1.0e-12)).mean())
     stats = partnete_metric_sums_from_prediction(
         prediction, label, category)
@@ -1457,68 +1550,8 @@ class SegSolver(Solver):
       loss = ce_weight * loss
       if lovasz_weight > 0:
         loss = loss + lovasz_weight * lovasz_softmax_loss(
-          logit, label.long(), ignore_index=self.FLAGS.LOSS.mask)
+            logit, label.long(), ignore_index=self.FLAGS.LOSS.mask)
     return loss
-
-  def partnete_point_categories(self, categories, batch_npt):
-    categories = torch.as_tensor(
-        categories, dtype=torch.long, device=batch_npt.device).reshape(-1)
-    batch_npt = torch.as_tensor(
-        batch_npt, dtype=torch.long, device=categories.device).reshape(-1)
-    if categories.numel() != batch_npt.numel():
-      raise ValueError('PartNetE category count and batch_npt do not match.')
-    return torch.repeat_interleave(categories, batch_npt)
-
-  def partnete_local_logits_and_labels(self, logit, label, categories, batch_npt):
-    point_categories = self.partnete_point_categories(categories, batch_npt)
-    if point_categories.numel() != label.numel():
-      raise ValueError('PartNetE point categories and labels do not match.')
-
-    groups = []
-    for category_tensor in point_categories.unique(sorted=True):
-      category = int(category_tensor.item())
-      start = PARTNETE_PART_OFFSETS[category]
-      end = PARTNETE_PART_OFFSETS[category + 1]
-      point_mask = point_categories.eq(category_tensor)
-      local_logit = logit[point_mask, start:end]
-      local = label[point_mask].long() - int(start)
-      if local.numel() and (local.min() < 0 or local.max() >= end - start):
-        raise ValueError('PartNetE label is outside its category part range.')
-      groups.append((local_logit, local))
-    return groups
-
-  def partnete_loss_function(self, logit, label, categories, batch_npt):
-    groups = self.partnete_local_logits_and_labels(
-        logit, label, categories, batch_npt)
-    total_points = sum(local_label.numel() for _, local_label in groups)
-    loss = logit.sum() * 0.0
-    for local_logit, local_label in groups:
-      weight = float(local_label.numel()) / float(total_points)
-      group_loss = torch.nn.functional.cross_entropy(
-          local_logit, local_label.long())
-      loss = loss + group_loss * weight
-    ce_weight = float(getattr(self.FLAGS.LOSS, 'ce_weight', 1.0))
-    lovasz_weight = float(getattr(self.FLAGS.LOSS, 'lovasz_weight', 0.0))
-    loss = ce_weight * loss
-    if lovasz_weight > 0:
-      lovasz_loss = logit.sum() * 0.0
-      for local_logit, local_label in groups:
-        weight = float(local_label.numel()) / float(total_points)
-        lovasz_loss = lovasz_loss + weight * lovasz_softmax_loss(
-            local_logit, local_label.long(), ignore_index=-1)
-      loss = loss + lovasz_weight * lovasz_loss
-    return loss
-
-  def partnete_accuracy(self, logit, label, categories, batch_npt):
-    groups = self.partnete_local_logits_and_labels(
-        logit, label, categories, batch_npt)
-    correct = logit.new_tensor(0.0)
-    total = 0
-    for local_logit, local_label in groups:
-      pred = local_logit.argmax(dim=1)
-      correct = correct + pred.eq(local_label).float().sum()
-      total += local_label.numel()
-    return correct / float(max(1, total))
 
   def accuracy(self, logit, label):
     pred = logit.argmax(dim=1)

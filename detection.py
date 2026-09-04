@@ -34,7 +34,7 @@ def _find_mmdet3d():
                     sys.path.pop(0)
         raise RuntimeError(
             'MMDetection3D v1.0.0rc5 is not usable in the active environment. '
-            'Activate the mamba environment and install the optional detection '
+            'Activate the pointttt environment and install the optional detection '
             'requirements listed in requirements-detection.txt.') from first_error
 
 
@@ -89,7 +89,7 @@ def main():
     _patch_mmcv_ddp_api()
 
     # Importing this module registers both custom classes with MMDetection3D.
-    from models import PointTTTdet  # noqa: F401
+    from models import point_ttt_det  # noqa: F401
 
     package_root = Path(mmdet3d.__file__).resolve().parent.parent
     train_script = package_root / 'tools' / 'train.py'

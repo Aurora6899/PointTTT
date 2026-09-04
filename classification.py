@@ -4,16 +4,47 @@ import torch.nn.functional as F
 import ocnn
 
 import os
-import random
 
-from thsolver import Solver
+from thsolver import Solver, get_config
 import builder
 
 
 class ClsSolver(Solver):
 
+  @classmethod
+  def update_configs(cls):
+    flags = get_config()
+    flags.defrost()
+    flags.MODEL.ttt_base_lr = 1.0
+    flags.MODEL.ttt_update_train = True
+    flags.MODEL.ttt_update_test = True
+    flags.freeze()
+
   def get_model(self, flags):
     return builder.get_classification_model(flags)
+
+  def config_model(self):
+    r'''Builds the model without dumping its complete module tree to stdout.'''
+    flags = self.FLAGS.MODEL
+    model = self.get_model(flags)
+    model_name = model.__class__.__name__
+    model.cuda(device=self.device)
+    if self.world_size > 1:
+      if flags.sync_bn:
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+      model = torch.nn.parallel.DistributedDataParallel(
+          module=model, device_ids=[self.device],
+          output_device=self.device, broadcast_buffers=False,
+          find_unused_parameters=flags.find_unused_parameters)
+    if self.is_master:
+      total = sum(parameter.numel() for parameter in model.parameters())
+      trainable = sum(
+          parameter.numel() for parameter in model.parameters()
+          if parameter.requires_grad)
+      print(
+          f'Model configured: {model_name} | parameters: {total / 1e6:.2f}M '
+          f'| trainable: {trainable / 1e6:.2f}M')
+    self.model = model
 
   def get_dataset(self, flags):
     return builder.get_classification_dataset(flags)
@@ -56,7 +87,7 @@ class ClsSolver(Solver):
 
     if not backbone_dict:
       raise RuntimeError(
-          'No PointMamba backbone weights were found in: ' + checkpoint_path)
+          'No PointTTT backbone weights were found in: ' + checkpoint_path)
 
     missing = sorted(target_keys.difference(backbone_dict))
     if missing:
@@ -96,16 +127,16 @@ class ClsSolver(Solver):
     return data
 
   def forward(self, batch):
-    #打印batch中的key
+
     # print('batch:', batch.keys())
     octree, label = batch['octree'].cuda(), batch['label'].cuda()
     # print('octree:', len(octree.points))
-    #打印points这个list中的每个元素的类型
+
     # for i in range(len(octree.points)):
     # print(type(octree.points[0]))
     data = self.get_input_feature(octree)
-    #随机取一个data的元素打印
-    # #产生随机数
+
+
     # num = random.randint(0, len(data)-1)
     # # print('data:', data[num])
     logits = self.model(data, octree, octree.depth)
