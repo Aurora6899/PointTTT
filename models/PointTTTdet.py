@@ -17,7 +17,7 @@ from mmdet3d.models import DETECTORS, build_backbone, build_head
 from mmdet3d.models.builder import BACKBONES
 from mmdet3d.models.detectors import Base3DDetector
 
-from .PointMamba import PointMamba
+from .PointTTT import PointTTT
 
 
 @BACKBONES.register_module()
