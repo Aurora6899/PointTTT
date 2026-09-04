@@ -67,7 +67,7 @@ The code has been tested on Ubuntu 20.04.
     ```bash
     python classification.py \
       --config configs/cls_m40.yaml \
-      SOLVER.gpu 0,1
+      SOLVER.gpu 0,1,
     ```
 
    PointTTT achieves 97.4% OA without voting, with 2.2M trainable parameters and
@@ -91,7 +91,7 @@ GPUs and a total training batch size of 32:
 ```bash
 python classification.py \
   --config configs/cls_scanobjectnn_pbt50rs.yaml \
-  SOLVER.gpu 0,1
+  SOLVER.gpu 0,1,
 ```
 
 PointTTT achieves 93.1%, 90.5%, and 84.5% OA on OBJ-BG, OBJ-ONLY, and
@@ -104,7 +104,7 @@ each data-loader worker, so it does not require the PointNet++ CUDA extension:
 ```bash
 python classification.py \
   --config configs/cls_scanobjectnn_pbt50rs.yaml \
-  SOLVER.gpu 0,1
+  SOLVER.gpu 0,1,
 ```
 
 In `pointbert` mode, training performs FPS to 1200 candidate points followed by
@@ -126,7 +126,7 @@ a total batch size of 32 in the paper:
 ```bash
 python classification.py \
   --config configs/cls_shapenet55_pretrain.yaml \
-  SOLVER.gpu 0,1
+  SOLVER.gpu 0,1,
 ```
 
 PointTTT achieves 91.2% OA without voting, with 2.2M trainable parameters and
@@ -147,7 +147,7 @@ setting:
 ```bash
 python segmentation.py \
   --config configs/seg_shapenetpart.yaml \
-  SOLVER.gpu 0,1,2,3
+  SOLVER.gpu 0,1,2,3,
 ```
 
 The four-stage PointTTT segmentation backbone (internal class name
@@ -201,7 +201,7 @@ PointTTT achieves 84.2% class-average mIoU and 87.1% instance-average mIoU with
    logs are written to `logs/scannet/from_scratch_1cm`.
 
     ```bash
-    python segmentation.py --config configs/seg_shapenetpart.yaml SOLVER.gpu 0,1,2,3 --port 10001
+    python segmentation.py --config configs/seg_shapenetpart.yaml SOLVER.gpu 0,1,2,3, --port 10001
     ```
 
 3. **Validate**: Reload the selected `best_model.pth`, run the repository's
@@ -209,7 +209,7 @@ PointTTT achieves 84.2% class-average mIoU and 87.1% instance-average mIoU with
    PointTTT achieves 77.6% validation mIoU and 77.3% official-test mIoU.
 
     ```bash
-    python scripts/run_seg_scannet.py --run validate --gpu 0,1,2,3 --port 10001
+    python scripts/run_seg_scannet.py --run validate --gpu 0,1,2,3, --port 10001
     ```
 
 ## 7. SUN RGB-D Detection (PointTTT + FCAF3D)
