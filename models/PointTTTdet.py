@@ -21,7 +21,7 @@ from .PointTTT import PointTTT
 
 
 @BACKBONES.register_module()
-class PointTTTDetectionBackbone(PointMamba):
+class PointTTTDetectionBackbone(PointTTT):
     """Detection-only registry adapter around the current PointTTT backbone."""
 
     def __init__(self, *args, partition_by_batch=True, **kwargs):
