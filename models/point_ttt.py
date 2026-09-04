@@ -250,10 +250,6 @@ class PointTTT(torch.nn.Module):
         return features
 
 class BiTTTLayer(nn.Module):
-    """
-    基于论文双向TTT思路修改的实现，支持前向-后向数据整合
-    核心改动：新增反向TTT分支、序列反转算子、门控融合机制
-    """
     def __init__(self,
                  dim: int,
                  patch_size: int,
@@ -273,10 +269,6 @@ class BiTTTLayer(nn.Module):
         self.ttt_layer_type = str(ttt_layer_type).lower()
         self.dilation = dilation
         self.use_rpe = use_rpe
-        # Keep the historical flat sequence as the default so existing
-        # classification/segmentation experiments are bit-for-bit unchanged.
-        # Detection enables this option to prevent TTT chunks from crossing
-        # point-cloud boundaries in a multi-sample batch.
         self.partition_by_batch = partition_by_batch
 
         ttt_layer_type = self.ttt_layer_type
@@ -288,11 +280,7 @@ class BiTTTLayer(nn.Module):
             raise ValueError(
                 f'Unsupported ttt_layer_type {ttt_layer_type!r}; '
                 f'choose from {tuple(ttt_layer_classes)}.')
-
-
-
         self.config = TTTConfig(
-            #vocab_size=32000,
             hidden_size=dim,
             intermediate_size=dim * 4,
             num_hidden_layers=2,
@@ -308,7 +296,6 @@ class BiTTTLayer(nn.Module):
             pre_conv=True,
             tie_word_embeddings=False,
         )
-
 
         ttt_layer_class = ttt_layer_classes[ttt_layer_type]
         self.ttt_forward = ttt_layer_class(
@@ -326,7 +313,6 @@ class BiTTTLayer(nn.Module):
 
     @torch.no_grad()
     def _build_position_ids(self, batch_size: int, seq_len: int, device: torch.device):
-        """生成位置索引（前向用正常顺序，反向用反转顺序）"""
         return torch.arange(0, seq_len, device=device, dtype=torch.long).unsqueeze(0).expand(batch_size, seq_len)
 
     def _run_bidirectional(self, x: torch.Tensor):
@@ -343,9 +329,6 @@ class BiTTTLayer(nn.Module):
             cache_params=None,
         )
 
-        # --------------------------
-
-        # --------------------------
 
         x_rev = torch.flip(x, dims=[1])
         pos_backward = self._build_position_ids(B_seq, seq_len, x.device)
@@ -361,9 +344,6 @@ class BiTTTLayer(nn.Module):
 
         out_backward = torch.flip(out_backward_rev, dims=[1])
 
-        # --------------------------
-
-        # --------------------------
 
         gate_f = torch.tanh(self.gate_forward)
         gate_b = torch.tanh(self.gate_backward)
@@ -449,7 +429,7 @@ class BiTTTLayer(nn.Module):
         return self._forward_flat(data)
 
     def extra_repr(self) -> str:
-        return (f"(双向TTT) dim={self.dim}, patch_size={self.patch_size}, "
+        return (f"(BiTTT) dim={self.dim}, patch_size={self.patch_size}, "
                 f"num_heads={self.num_heads}, dilation={self.dilation}, "
                 f"ttt_layer_type={self.ttt_layer_type}, "
                 f"gate_forward={self.gate_forward.item():.3f}, gate_backward={self.gate_backward.item():.3f}")
@@ -534,10 +514,8 @@ class OctreeAdaptiveNorm(nn.Module):
 
 
 class SerializationPerformanceEvaluator(nn.Module):
-    """评估不同序列化方法的性能"""
 
     def evaluate_locality_preservation(self, data, octree, depth, method):
-        """评估空间局部性保持能力"""
         try:
             key = octree.key(depth, octree.nempty)
             if key.numel() == 0 or key.numel() != data.shape[0]:
@@ -562,7 +540,6 @@ class SerializationPerformanceEvaluator(nn.Module):
             return 0.5
     
     def _compute_locality_score(self, xyz, sort_idx):
-        """计算序列化后的局部性保持分数"""
         if len(xyz) < 2:
             return torch.tensor(0.5)
             
@@ -585,7 +562,6 @@ class SerializationPerformanceEvaluator(nn.Module):
 
 
 class AdaptiveSerializationSelector(nn.Module):
-    """智能序列化方法选择器"""
     def __init__(self, feature_dim, num_methods):
         super().__init__()
         
@@ -687,7 +663,6 @@ class MultiSerializationBiTTTLayer(BiTTTLayer):
                 print(f"🧠 Adaptive selector initialized with {len(self.serialization_methods)} methods")
     
     def extract_comprehensive_features(self, data, octree, depth):
-        """提取基于八叉树结构的综合特征"""
         features = []
         
         try:
@@ -741,7 +716,6 @@ class MultiSerializationBiTTTLayer(BiTTTLayer):
         return torch.tensor(features, device=data.device, dtype=torch.float32)
 
     def select_serialization_method(self, data, octree, depth):
-        """智能选择序列化方法 - 保留所有策略"""
         if not MULTI_SERIALIZATION_AVAILABLE:
             return 'z_order'
         
@@ -795,7 +769,6 @@ class MultiSerializationBiTTTLayer(BiTTTLayer):
         return 'z_order'
     
     def record_performance(self, method, data, octree, depth, performance_pred, method_logits):
-        """记录性能用于自监督学习"""
         self.call_count += 1
         
         if self.call_count % self.update_frequency == 0:
@@ -818,7 +791,6 @@ class MultiSerializationBiTTTLayer(BiTTTLayer):
                 self.performance_history = self.performance_history[-500:]
     
     def compute_adaptive_loss(self):
-        """计算自适应学习损失"""
         if len(self.performance_history) < 10:
             return torch.tensor(0.0, requires_grad=True, device=next(self.parameters()).device)
         
@@ -917,7 +889,6 @@ class MultiSerializationBiTTTLayer(BiTTTLayer):
 
 
 class OctreeTTT(nn.Module):
-    """支持多序列化策略的八叉树 TTT 模块。"""
     
     def __init__(self, dim: int, proj_drop: float = 0.0, 
                  ttt_patch_size: int = 64, ttt_num_heads: int = 24,
