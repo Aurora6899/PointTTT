@@ -39,7 +39,7 @@ DATA:
     location: data/scannet.npz/train
     filelist: data/scannet.npz/scannetv2_train_npz.txt
 
-    batch_size: 4
+    batch_size: 8
     shuffle: True
     num_workers: 4
 
