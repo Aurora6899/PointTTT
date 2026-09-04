@@ -1,5 +1,4 @@
 
-from .PointMamba import PointMamba
-#from .LKM_pointmamba import PointMamba
-from .PointMambaseg import PointMambaSeg
-from .PointMambacls import PointMambaCls
+from .PointTTT import PointTTT
+from .PointTTTseg import PointTTTSeg
+from .PointTTTcls import PointTTTCls
