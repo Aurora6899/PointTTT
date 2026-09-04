@@ -1,8 +1,3 @@
-# ScanNet-20 semantic segmentation from scratch.
-# Protocol: OctFormer official ScanNet configuration, except that the learning
-# rate remains 1e-4 as requested. The validation split is used for checkpoint
-# selection; scripts/run_seg_scannet.py switches to the official test split for
-# final 72-vote test inference.
 
 SOLVER:
   gpu: 0,1,
