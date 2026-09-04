@@ -75,7 +75,7 @@ DATA:
     # num_workers: 0
 
 MODEL:
-  name: pointmamba_cls
+  name: pointttt_cls
   nout: 40
   channel: 4
   # nempty: True

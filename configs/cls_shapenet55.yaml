@@ -3,7 +3,7 @@ SOLVER:
   run: train
   type: adamw
   best_val: max:accu
-  logdir: logs/scanobjectnn/objbg
+  logdir: logs/shapenet55/supervised_1024
   max_epoch: 300
   test_every_epoch: 1
   log_per_iter: 20
@@ -12,22 +12,19 @@ SOLVER:
   weight_decay: 0.05
   milestones: (120,160)
   ckpt_num: 20
-  # Optional ShapeNet55 classification checkpoint. Only model.backbone is
-  # loaded; the ScanObjectNN 15-class head is initialized from scratch.
-  pretrained: ''
 
 DATA:
   train:
-    name: scanobjectnn
+    name: shapenet55
     split: train
-    h5_file: data/ScanObjectNN/main_split/training_objectdataset.h5
-    # Direct HDF5 mode. For Point-BERT-style 1024-point sampling, set
-    # num_points to 1024 and sampling to pointbert in both train and test.
-    num_points: 2048
-    sampling: none
-    pointbert_candidate_points: 1200
-    cache_fps: True
-    normalize: False
+    point_root: data/ShapeNet55-34/shapenet_pc
+    filelist: data/ShapeNet55-34/ShapeNet-55/train.txt
+    num_classes: 55
+    # Match Point-BERT's ShapeNet55 loader: randomly sample 1024 of 8192
+    # points, then normalize the sampled cloud into one unit sphere.
+    num_points: 1024
+    sampling: random
+    normalize: True
     depth: 6
     full_depth: 2
     orient_normal: ''
@@ -44,14 +41,14 @@ DATA:
     num_workers: 4
 
   test:
-    name: scanobjectnn
+    name: shapenet55
     split: test
-    h5_file: data/ScanObjectNN/main_split/test_objectdataset.h5
-    num_points: 2048
-    sampling: none
-    pointbert_candidate_points: 1200
-    cache_fps: True
-    normalize: False
+    point_root: data/ShapeNet55-34/shapenet_pc
+    filelist: data/ShapeNet55-34/ShapeNet-55/test.txt
+    num_classes: 55
+    num_points: 1024
+    sampling: random
+    normalize: True
     depth: 6
     full_depth: 2
     orient_normal: ''
@@ -62,17 +59,17 @@ DATA:
     uniform: False
     jitter: 0.0
     flip: (0.0, 0.0, 0.0)
-    batch_size: 16
+    batch_size: 32
     shuffle: False
     pin_memory: False
     num_workers: 2
 
 MODEL:
   name: pointttt_cls
-  nout: 15
+  nout: 55
   channel: 3
   nempty: True
   feature: P
 
 LOSS:
-  num_class: 15
+  num_class: 55

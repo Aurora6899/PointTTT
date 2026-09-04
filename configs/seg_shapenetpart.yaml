@@ -94,8 +94,8 @@ DATA:
     tta: True
 
 MODEL:
-  name: pointmamba_seg
-  # The four-stage PointMambaSeg_base is configured in builder.py with
+  name: pointttt_seg
+  # The four-stage point_ttt_seg_base is configured in builder.py with
   # channels [96, 192, 384, 384] and blocks [2, 2, 18, 2].
   feature: P
   channel: 3

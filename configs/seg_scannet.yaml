@@ -7,7 +7,7 @@
 SOLVER:
   gpu: 0,1,
   run: train
-  logdir: logs/scannet/from_scratch_1cm
+  logdir: logs/scannet/hierarchical_pointttt_1cm_phase2
   best_val: max:mIoU_part
 
   ckpt_num: 200
@@ -19,7 +19,7 @@ SOLVER:
   type: adamw_attn
 
   # Intentionally kept unchanged; OctFormer's official value is 1.5e-3.
-  lr: 0.001 #0.0001
+  lr: 0.001
   lr_type: step_warmup
   milestones: (360, 520)
   dist_url: tcp://localhost:10001
@@ -77,8 +77,8 @@ DATA:
     num_workers: 2
 
 MODEL:
-  name: pointmamba_seg
-  # PointMambaSeg_base in builder.py uses channels [96, 192, 384, 384]
+  name: pointttt_seg
+  # point_ttt_seg_base in builder.py uses channels [96, 192, 384, 384]
   # and num_blocks [2, 2, 18, 2], matching the OctFormer base hierarchy.
   # N: normal (3), D: displacement (1), F: color (3), P: position (3).
   feature: NDFP
@@ -88,6 +88,20 @@ MODEL:
   interp: nearest
   sync_bn: True
   find_unused_parameters: False
+
+  # Hierarchical PointTTT / Geo-TNT. Stage ids are zero-based. The default
+  # phase uses one global-memory block at the end of stages 2 and 3.
+  partition_by_batch: True
+  ttt_layer_type: linear
+  ttt_patch_size: 64
+  ttt_num_heads: 24
+  pointttt_hierarchical_enabled: True
+  pointttt_hierarchical_stages: [2, 3]
+  pointttt_hierarchical_block_interval: 0
+  pointttt_global_chunk_size: 128
+  pointttt_summary_tokens: 1
+  pointttt_global_bidirectional: True
+  pointttt_global_gate_init: 0.0
 
 LOSS:
   # Label 0 is the unlabeled/background class and is ignored for ScanNet-20.
