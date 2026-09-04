@@ -166,7 +166,7 @@ setting:
 ```bash
 python segmentation.py \
   --config configs/seg_shapenetpart.yaml \
-  SOLVER.gpu 0,1,2,3,
+  SOLVER.gpu 0,1,2,3
 ```
 
 The four-stage PointTTT segmentation backbone (internal class name
@@ -220,11 +220,7 @@ PointTTT achieves 84.2% class-average mIoU and 87.1% instance-average mIoU with
    logs are written to `logs/scannet/from_scratch_1cm`.
 
     ```bash
-    python segmentation.py \
-      --config configs/seg_scannet.yaml \
-      SOLVER.gpu 0,1,2,3, \
-      DATA.train.batch_size 3 \
-      DATA.test.batch_size 1
+    python segmentation.py --config configs/seg_shapenetpart.yaml SOLVER.gpu 0,1,2,3 --port 10001
     ```
 
 3. **Validate**: Reload the selected `best_model.pth`, run the repository's
