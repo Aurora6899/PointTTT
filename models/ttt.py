@@ -1,22 +1,14 @@
 from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import CrossEntropyLoss
 from torch.utils._pytree import tree_map
 
 from transformers import PretrainedConfig
-from transformers.activations import ACT2FN
-from transformers.modeling_outputs import (
-    BaseModelOutputWithPast,
-    CausalLMOutputWithPast,
-)
-from transformers.modeling_utils import PreTrainedModel
-from transformers.utils import ModelOutput, logging
+from transformers.utils import logging
 try:
     from transformers.utils.import_utils import is_causal_conv1d_available
 except ImportError:
@@ -35,123 +27,13 @@ else:
 
 logger = logging.get_logger(__name__)
 
-TTT_STANDARD_CONFIGS = {
-    "125m": {
-        "hidden_size": 768,
-        "intermediate_size": 2048,
-        "num_hidden_layers": 12,
-        "num_attention_heads": 12,
-    },
-    "350m": {
-        "hidden_size": 1024,
-        "intermediate_size": 2736,
-        "num_hidden_layers": 24,
-        "num_attention_heads": 16,
-    },
-    "760m": {
-        "hidden_size": 1536,
-        "intermediate_size": 4096,
-        "num_hidden_layers": 24,
-        "num_attention_heads": 16,
-    },
-    "1b": {
-        "hidden_size": 2048,
-        "intermediate_size": 5504,
-        "num_hidden_layers": 24,
-        "num_attention_heads": 32,
-    },
-}
-
-
 class TTTConfig(PretrainedConfig):
-    r"""
-    This is the configuration class to store the configuration of a [`TTTModel`]. It is used to instantiate an TTT
-    model according to the specified arguments, defining the model architecture. Instantiating a configuration with the
-    defaults will yield a similar configuration to that of the TTT-1B.
+    """Configuration for the TTT layers used by PointTTT.
 
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
-    documentation from [`PretrainedConfig`] for more information.
-
-
-    Args:
-        vocab_size (`int`, *optional*, defaults to 32000):
-            Vocabulary size of the LLaMA model. Defines the number of different tokens that can be represented by the
-            `inputs_ids` passed when calling [`LlamaModel`]
-        hidden_size (`int`, *optional*, defaults to 4096):
-            Dimension of the hidden representations.
-        intermediate_size (`int`, *optional*, defaults to 11008):
-            Dimension of the MLP representations.
-        num_hidden_layers (`int`, *optional*, defaults to 32):
-            Number of hidden layers in the Transformer decoder.
-        num_attention_heads (`int`, *optional*, defaults to 32):
-            Number of attention heads for each attention layer in the Transformer decoder.
-        num_key_value_heads (`int`, *optional*):
-            This is the number of key_value heads that should be used to implement Grouped Query Attention. If
-            `num_key_value_heads=num_attention_heads`, the model will use Multi Head Attention (MHA), if
-            `num_key_value_heads=1 the model will use Multi Query Attention (MQA) otherwise GQA is used. When
-            converting a multi-head checkpoint to a GQA checkpoint, each group key and value head should be constructed
-            by meanpooling all the original heads within that group. For more details checkout [this
-            paper](https://arxiv.org/pdf/2305.13245.pdf). If it is not specified, will default to
-            `num_attention_heads`.
-        hidden_act (`str` or `function`, *optional*, defaults to `"silu"`):
-            The non-linear activation function (function or string) in the decoder.
-        max_position_embeddings (`int`, *optional*, defaults to 2048):
-            The maximum sequence length that this model might ever be used with. Llama 1 supports up to 2048 tokens,
-            Llama 2 up to 4096, CodeLlama up to 16384.
-        initializer_range (`float`, *optional*, defaults to 0.02):
-            The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-        rms_norm_eps (`float`, *optional*, defaults to 1e-06):
-            The epsilon used by the rms normalization layers.
-        use_cache (`bool`, *optional*, defaults to `True`):
-            Whether or not the model should return the last key/values attentions (not used by all models). Only
-            relevant if `config.is_decoder=True`.
-        pad_token_id (`int`, *optional*):
-            Padding token id.
-        bos_token_id (`int`, *optional*, defaults to 1):
-            Beginning of stream token id.
-        eos_token_id (`int`, *optional*, defaults to 2):
-            End of stream token id.
-        pretraining_tp (`int`, *optional*, defaults to 1):
-            Experimental feature. Tensor parallelism rank used during pretraining. Please refer to [this
-            document](https://huggingface.co/docs/transformers/main/perf_train_gpu_many#tensor-parallelism) to understand more about it. This value is
-            necessary to ensure exact reproducibility of the pretraining results. Please refer to [this
-            issue](https://github.com/pytorch/pytorch/issues/76232).
-        tie_word_embeddings (`bool`, *optional*, defaults to `False`):
-            Whether to tie weight embeddings
-        rope_theta (`float`, *optional*, defaults to 10000.0):
-            The base period of the RoPE embeddings.
-        rope_scaling (`Dict`, *optional*):
-            Dictionary containing the scaling configuration for the RoPE embeddings. Currently supports two scaling
-            strategies: linear and dynamic. Their scaling factor must be a float greater than 1. The expected format is
-            `{"type": strategy name, "factor": scaling factor}`. When using this flag, don't update
-            `max_position_embeddings` to the expected new maximum. See the following thread for more information on how
-            these scaling strategies behave:
-            https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/. This is an
-            experimental feature, subject to breaking API changes in future versions.
-        use_gate (`bool`, *optional*, defaults to `False`): whether use gating in Mamba backbone
-        share_qk (`bool`, *optional*, defaults to `False`): whether share Q/K projection matrix
-        ttt_layer_type (`str`, *optional*, defaults to `"linear"`): ttt block type, "linear" or "mlp", stands for TTT-Linear and TTT-MLP
-        ttt_base_lr (`float`, *optional*, defaults to 1.0): base learning rate for TTT learner
-        pre_conv (`bool`, *optional*, defaults to `False`): whether use conv before TTT
-        conv_kernel (`int`, *optional*, defaults to 4): kernel size of the conv layer
-        scan_checkpoint_group_size (`int`, *optional*, defaults to 0):
-            gradient checkpoint group size on seq dimension, 0 means no checkpointing.
-            In JAX implementation, we set it 4, which means we group 4 mini-batches together in 1 gradient checkpointg to save memory.
-
-
-    ```python
-    >>> from . import TTTModel, TTTConfig
-
-    >>> # Initializing a TTT ttt-1b style configuration
-    >>> configuration = TTTConfig()
-
-    >>> # Initializing a model from the ttt-1b style configuration
-    >>> model = TTTModel(configuration)
-
-    >>> # Accessing the model configuration
-    >>> configuration = model.config
-    ```"""
-
+    The point-cloud backbone directly instantiates :class:`TTTLinear` or
+    :class:`TTTMLP`; language-model embedding and generation settings are not
+    part of this module.
+    """
     model_type = "ttt"
 
     def __init__(
@@ -176,6 +58,8 @@ class TTTConfig(PretrainedConfig):
         share_qk=False,
         ttt_layer_type="linear",
         ttt_base_lr=1.0,
+        ttt_update_train=True,
+        ttt_update_test=True,
         mini_batch_size=16,
         pre_conv=False,
         conv_kernel=4,
@@ -200,6 +84,8 @@ class TTTConfig(PretrainedConfig):
         self.share_qk = share_qk
         self.ttt_layer_type = ttt_layer_type
         self.ttt_base_lr = ttt_base_lr
+        self.ttt_update_train = ttt_update_train
+        self.ttt_update_test = ttt_update_test
         self.mini_batch_size = mini_batch_size
 
         self.pre_conv = pre_conv
@@ -278,58 +164,6 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
     return q_embed, k_embed
 
 
-class RMSNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-6):
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states):
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-
-class SwiGluMLP(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-        self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
-        self.act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, x):
-        if self.config.pretraining_tp > 1:
-            slice = self.intermediate_size // self.config.pretraining_tp
-            gate_proj_slices = self.gate_proj.weight.split(slice, dim=0)
-            up_proj_slices = self.up_proj.weight.split(slice, dim=0)
-            down_proj_slices = self.down_proj.weight.split(slice, dim=1)
-
-            gate_proj = torch.cat(
-                [F.linear(x, gate_proj_slices[i]) for i in range(self.config.pretraining_tp)],
-                dim=-1,
-            )
-            up_proj = torch.cat(
-                [F.linear(x, up_proj_slices[i]) for i in range(self.config.pretraining_tp)],
-                dim=-1,
-            )
-
-            intermediate_states = (self.act_fn(gate_proj) * up_proj).split(slice, dim=2)
-            down_proj = [
-                F.linear(intermediate_states[i], down_proj_slices[i]) for i in range(self.config.pretraining_tp)
-            ]
-            down_proj = sum(down_proj)
-        else:
-            down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-
-        return down_proj
-
-
 class RotaryEmbedding(nn.Module):
     def __init__(
         self,
@@ -362,73 +196,6 @@ class RotaryEmbedding(nn.Module):
             cos = emb.cos()
             sin = emb.sin()
         return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
-
-
-class Conv(nn.Module):
-    def __init__(self, config, layer_idx):
-        super().__init__()
-        self.config = config
-        self.layer_idx = layer_idx
-
-        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.conv = nn.Conv1d(
-            config.hidden_size,
-            config.hidden_size,
-            bias=True,
-            kernel_size=config.conv_kernel,
-            groups=config.hidden_size,
-            padding=config.conv_kernel - 1,
-        )
-
-    def __call__(self, hidden_states, cache_params=None):
-        seq_len = hidden_states.shape[1]
-        hidden_states = self.norm(hidden_states)
-        # [B, C, L]
-        hidden_states = hidden_states.transpose(1, 2)
-
-        if causal_conv1d_fn is None:
-            if cache_params is not None:
-                if cache_params.seqlen_offset > 0:
-                    conv_state = cache_params.conv_states_dic["pre_conv"][self.layer_idx]
-                    conv_state = torch.roll(conv_state, shifts=-1, dims=-1)
-                    conv_state[:, :, -1] = hidden_states[:, :, 0]
-                    cache_params.conv_states_dic["pre_conv"][self.layer_idx].copy_(conv_state)
-                    hidden_states = torch.sum(conv_state * self.conv.weight[:, 0, :], dim=-1)
-                    hidden_states += self.conv.bias
-                    hidden_states = hidden_states.unsqueeze(-1)
-                else:
-                    conv_state = nn.functional.pad(
-                        hidden_states,
-                        (self.config.conv_kernel - hidden_states.shape[-1], 0),
-                    )
-                    cache_params.conv_states_dic["pre_conv"][self.layer_idx].copy_(conv_state)
-                    hidden_states = self.conv(hidden_states)[..., :seq_len]
-            else:
-                hidden_states = self.conv(hidden_states)[..., :seq_len]
-        else:
-            conv_weights = self.conv.weight.view(self.conv.weight.size(0), self.conv.weight.size(2))
-            if cache_params is not None and cache_params.seqlen_offset > 0:
-                hidden_states = causal_conv1d_update(
-                    hidden_states.squeeze(-1),
-                    cache_params.conv_states_dic["pre_conv"][self.layer_idx],
-                    conv_weights,
-                    self.conv.bias,
-                    None,
-                )
-                hidden_states = hidden_states.unsqueeze(-1)
-            else:
-                if cache_params is not None:
-                    conv_states = nn.functional.pad(
-                        hidden_states,
-                        (self.config.conv_kernel - hidden_states.shape[-1], 0),
-                    )
-                    cache_params.conv_states_dic["pre_conv"][self.layer_idx].copy_(conv_states)
-                hidden_states = causal_conv1d_fn(hidden_states, conv_weights, self.conv.bias, activation=None)
-
-        # [B, L, C]
-        hidden_states = hidden_states.transpose(1, 2)
-
-        return hidden_states
 
 
 #########################
@@ -525,7 +292,7 @@ class TTTCache:
     TTTCache is a data structure that holds the last hidden states and gradients for the TTT layer.
 
     Arguments:
-        model: TTTModel
+        model: a module container exposing ``config`` and ``layers``
         batch_size: int
 
     Attributes:
@@ -637,16 +404,22 @@ class TTTBase(nn.Module):
         self._init_ttt_lr_gate()
         self._init_ttt_ln()
 
-        # use gating as in Mamba backbone
+        # Optional gating for the TTT layer.
         self.use_gate = config.use_gate
         if self.use_gate:
             self.g_proj = nn.Linear(self.width, self.width, bias=False)
 
         self.post_norm = nn.LayerNorm(self.width, eps=1e-6)
 
+    def ttt_update_enabled(self):
+        """Return whether fast-weight updates are active in this mode."""
+        return bool(
+            self.config.ttt_update_train if self.training
+            else self.config.ttt_update_test)
+
     def _init_qkvo_proj(self):
         self.q_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
-        # we share Q/K projection when using Mamba backbone
+        # Share the Q/K projection when requested by the PointTTT configuration.
         if not self.share_qk:
             self.k_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
         self.v_proj = nn.Linear(self.width, self.num_heads * self.head_dim, bias=False)
@@ -778,9 +551,6 @@ class TTTBase(nn.Module):
             )
         return XQ, XK, XV
 
-    def _split_heads(self, hidden_states):
-        return hidden_states.reshape(hidden_states.shape[:2] + (self.num_heads, self.head_dim))
-
     def get_eta(self, X, mini_batch_step_offset, mini_batch_size):
         # [B, num_heads, num_mini_batch, mini_batch_size, 1]
         ttt_lr = torch.einsum("bnkc,hdc->bhnkd", X, self.learnable_ttt_lr_weight) + self.learnable_ttt_lr_bias.reshape(
@@ -790,7 +560,8 @@ class TTTBase(nn.Module):
 
         # [B, num_heads, num_mini_batch, 1, mini_batch_size]
         ttt_lr = ttt_lr.permute(0, 1, 2, 4, 3)
-        ttt_lr_eta = self.config.ttt_base_lr * ttt_lr / self.head_dim
+        update_scale = self.config.ttt_base_lr if self.ttt_update_enabled() else 0.0
+        ttt_lr_eta = update_scale * ttt_lr / self.head_dim
 
         # [B, L]
         token_idx = self.token_idx + self.learnable_token_idx
@@ -869,7 +640,7 @@ class TTTBase(nn.Module):
 
         XQ, XK, XV = self.get_qkv_projections(hidden_states, cache_params=cache_params)
 
-        # 代码新增当未提供 position_ids 时自动生成（与模型解码时的行为一致）
+
         if position_ids is None:
             seqlen_offset = cache_params.seqlen_offset if cache_params is not None else 0
             position_ids = torch.arange(
@@ -957,6 +728,36 @@ class TTTLinear(TTTBase):
         L = inputs["XV"].shape[2] * inputs["XV"].shape[3]
         device = inputs["XV"].device
         dtype = inputs["XV"].dtype
+
+        # Keep all learned projections and learner parameters, but bypass only
+        # the reconstruction-gradient fast-weight update. This is equivalent
+        # to the regular path with eta=0 and exposes the update's real runtime
+        # and memory overhead for the ablation.
+        if not self.ttt_update_enabled():
+            xq = inputs["XQ"]
+            weight = self.W1.reshape(
+                1, self.num_heads, 1, self.head_dim, self.head_dim)
+            bias = self.b1.reshape(
+                1, self.num_heads, 1, 1, self.head_dim)
+            z1 = torch.matmul(xq, weight) + bias
+            ln_weight = self.ttt_norm_weight.reshape(
+                1, self.num_heads, 1, 1, self.head_dim)
+            ln_bias = self.ttt_norm_bias.reshape(
+                1, self.num_heads, 1, 1, self.head_dim)
+            output = xq + ln_fwd(z1, ln_weight, ln_bias)
+            output = output.permute(0, 2, 3, 1, 4).reshape(B, L, self.width)
+
+            params = {
+                "W1_states": torch.tile(
+                    self.W1.unsqueeze(0), dims=(B, 1, 1, 1)),
+                "b1_states": torch.tile(
+                    self.b1.unsqueeze(0), dims=(B, 1, 1, 1)),
+            }
+            params["W1_grad"] = torch.zeros_like(params["W1_states"])
+            params["b1_grad"] = torch.zeros_like(params["b1_states"])
+            if cache_params is not None:
+                cache_params.update(params, self.layer_idx, L)
+            return output, params
 
         # NOTE:
         # for prefilling, we will always use dual form for faster computation
@@ -1281,384 +1082,3 @@ class TTTMLP(TTTBase):
         # [B, L, C]
         XQW_batch = XQW_batch.reshape(B, L, self.width)
         return XQW_batch, batch_params_dict
-
-
-################################
-### E2E Architecture Modules ###
-################################
-
-
-class Block(nn.Module):
-    def __init__(self, config: TTTConfig, layer_idx: int):
-        super().__init__()
-        self.hidden_size = config.hidden_size
-        self.pre_conv = config.pre_conv
-
-        if config.ttt_layer_type == "linear":
-            ttt_layer = TTTLinear
-        elif config.ttt_layer_type == "mlp":
-            ttt_layer = TTTMLP
-        else:
-            raise ValueError(f"Invalid ttt_layer_type: {config.ttt_layer_type}")
-
-        self.seq_modeling_block = ttt_layer(config=config, layer_idx=layer_idx)
-
-        self.mlp = SwiGluMLP(config)
-        if self.pre_conv:
-            self.conv = Conv(config, layer_idx)
-
-        self.seq_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.ffn_norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.layer_idx = layer_idx
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        cache_params: Optional[TTTCache] = None,
-    ):
-        if self.pre_conv:
-            residual = hidden_states
-            hidden_states = self.conv(hidden_states, cache_params=cache_params)
-            hidden_states = residual + hidden_states
-
-        residual = hidden_states
-
-        hidden_states = self.seq_norm(hidden_states)
-
-        # TTT Layer
-        hidden_states = self.seq_modeling_block(
-            hidden_states=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            cache_params=cache_params,
-        )
-        hidden_states = residual + hidden_states
-
-        # Feed-Forward-Network
-        residual = hidden_states
-        hidden_states = self.ffn_norm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states
-
-        return hidden_states
-
-
-class TTTPreTrainedModel(PreTrainedModel):
-    config_class = TTTConfig
-    base_model_prefix = "model"
-    supports_gradient_checkpointing = True
-    _no_split_modules = ["Block"]
-
-    def _init_weights(self, module):
-        std = self.config.initializer_range
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=std)
-            if module.bias is not None:
-                module.bias.data.zero_()
-        elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=std)
-            if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
-
-
-@dataclass
-class TTTOutput(ModelOutput):
-    """
-    Class for the TTT model outputs.
-
-    Args:
-        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-            Sequence of hidden-states at the output of the last layer of the model.
-        cache_params (`TTTCache`):
-            The state of the model at the last time step. Can be used in a forward method with the next `input_ids` to
-            avoid providing the old `input_ids`.
-    """
-
-    last_hidden_state: Optional[torch.FloatTensor] = None
-    cache_params: Optional[TTTCache] = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-
-
-@dataclass
-class TTTCausalLMOutput(ModelOutput):
-    """
-    Base class for causal language model (or autoregressive) outputs.
-
-    Args:
-        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `labels` is provided):
-            Language modeling loss (for next-token prediction).
-        logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        cache_params (`TTTCache`):
-            The state of the model at the last time step. Can be used in a forward method with the next `input_ids` to
-            avoid providing the old `input_ids`.
-    """
-
-    loss: Optional[torch.FloatTensor] = None
-    logits: Optional[torch.FloatTensor] = None
-    cache_params: Optional[TTTCache] = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-
-
-class TTTModel(TTTPreTrainedModel):
-    """
-    Decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`Block`]
-
-    Args:
-        config: TTTConfig
-    """
-
-    def __init__(self, config: TTTConfig):
-        super().__init__(config)
-        self.padding_idx = config.pad_token_id
-        self.vocab_size = config.vocab_size
-
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList([Block(config, layer_idx) for layer_idx in range(config.num_hidden_layers)])
-        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.gradient_checkpointing = False
-
-        # Initialize weights and apply final processing
-        self.post_init()
-
-    def get_input_embeddings(self):
-        return self.embed_tokens
-
-    def set_input_embeddings(self, value):
-        self.embed_tokens = value
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        cache_params: Optional[TTTCache] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        use_cache: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPast]:
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        if (input_ids is None) ^ (inputs_embeds is not None):
-            raise ValueError(
-                "You cannot specify both input_ids and inputs_embeds at the same time, and must specify either one"
-            )
-
-        if self.gradient_checkpointing and self.training and use_cache:
-            logger.warning_once(
-                "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`."
-            )
-            use_cache = False
-
-        if inputs_embeds is None:
-            inputs_embeds = self.embed_tokens(input_ids)
-
-        if cache_params is None and use_cache:
-            cache_params = TTTCache(self, inputs_embeds.size(0))
-
-        seqlen_offset = 0
-        if cache_params is not None:
-            seqlen_offset = cache_params.seqlen_offset
-        position_ids = torch.arange(
-            seqlen_offset,
-            seqlen_offset + inputs_embeds.shape[1],
-            dtype=torch.long,
-            device=inputs_embeds.device,
-        ).unsqueeze(0)
-
-        hidden_states = inputs_embeds
-
-        if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
-
-        # decoder layers
-        all_hidden_states = () if output_hidden_states else None
-
-        for decoder_layer in self.layers:
-            if self.gradient_checkpointing and self.training:
-                hidden_states = self._gradient_checkpointing_func(
-                    decoder_layer.__call__,
-                    hidden_states,
-                    attention_mask,
-                    position_ids,
-                    cache_params,
-                )
-            else:
-                hidden_states = decoder_layer(
-                    hidden_states,
-                    attention_mask=attention_mask,
-                    position_ids=position_ids,
-                    cache_params=cache_params,
-                )
-
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-
-        if use_cache:
-            cache_params.seqlen_offset += inputs_embeds.shape[1]
-
-        hidden_states = self.norm(hidden_states)
-
-        # add hidden states from the last decoder layer
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
-
-        if not return_dict:
-            return tuple(v for v in [hidden_states, cache_params, all_hidden_states] if v is not None)
-
-        return TTTOutput(
-            last_hidden_state=hidden_states,
-            cache_params=cache_params if use_cache else None,
-            hidden_states=all_hidden_states,
-        )
-
-
-class TTTForCausalLM(TTTPreTrainedModel):
-    _tied_weights_keys = ["lm_head.weight"]
-
-    def __init__(self, config):
-        super().__init__(config)
-        self.model = TTTModel(config)
-        self.vocab_size = config.vocab_size
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
-        # Initialize weights and apply final processing
-        self.post_init()
-
-    def get_input_embeddings(self):
-        return self.model.embed_tokens
-
-    def set_input_embeddings(self, value):
-        self.model.embed_tokens = value
-
-    def get_output_embeddings(self):
-        return self.lm_head
-
-    def set_output_embeddings(self, new_embeddings):
-        self.lm_head = new_embeddings
-
-    def set_decoder(self, decoder):
-        self.model = decoder
-
-    def get_decoder(self):
-        return self.model
-
-    def _update_model_kwargs_for_generation(
-        self, outputs: ModelOutput, model_kwargs: Dict[str, Any], **kwargs
-    ) -> Dict[str, Any]:
-        model_kwargs["cache_params"] = outputs.get("cache_params", None)
-        # update attention mask
-        if "attention_mask" in model_kwargs:
-            attention_mask = model_kwargs["attention_mask"]
-            model_kwargs["attention_mask"] = torch.cat(
-                [attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))],
-                dim=-1,
-            )
-        return model_kwargs
-
-    def prepare_inputs_for_generation(
-        self,
-        input_ids,
-        attention_mask=None,
-        cache_params: Optional[TTTCache] = None,
-        inputs_embeds=None,
-        **kwargs,
-    ):
-        # only last token for inputs_ids if the state is passed along.
-        if cache_params is not None:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-            attention_mask = attention_mask[:, -1].unsqueeze(-1) if attention_mask is not None else None
-
-        if inputs_embeds is not None and cache_params is None:
-            model_inputs = {"inputs_embeds": inputs_embeds}
-        else:
-            model_inputs = {"input_ids": input_ids}
-
-        model_inputs.update(
-            {
-                "cache_params": cache_params,
-                "use_cache": kwargs.get("use_cache"),
-                "attention_mask": attention_mask,
-            }
-        )
-
-        return model_inputs
-
-    def forward(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        cache_params: Optional[TTTCache] = None,
-        labels: Optional[torch.LongTensor] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        use_cache: Optional[bool] = None,
-        *,
-        output_attentions: Optional[bool] = None,
-    ) -> Union[Tuple, CausalLMOutputWithPast]:
-        """
-        Args:
-            labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-                Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
-                config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
-                (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
-        """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        assert not output_attentions, "output_attentions is not available in TTTForCausalLM"
-
-        # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
-        outputs = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            cache_params=cache_params,
-            inputs_embeds=inputs_embeds,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            use_cache=use_cache,
-        )
-
-        hidden_states = outputs[0]
-        if self.config.pretraining_tp > 1:
-            lm_head_slices = self.lm_head.weight.split(self.vocab_size // self.config.pretraining_tp, dim=0)
-            logits = [F.linear(hidden_states, lm_head_slices[i]) for i in range(self.config.pretraining_tp)]
-            logits = torch.cat(logits, dim=-1)
-        else:
-            logits = self.lm_head(hidden_states)
-        logits = logits.float()
-
-        loss = None
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Enable model parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss = loss_fct(shift_logits, shift_labels)
-
-        if not return_dict:
-            output = (logits,) + outputs[1:]
-            return (loss,) + output if loss is not None else output
-
-        return TTTCausalLMOutput(
-            loss=loss,
-            logits=logits,
-            cache_params=outputs.cache_params,
-            hidden_states=outputs.hidden_states,
-        )
