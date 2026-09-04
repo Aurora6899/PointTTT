@@ -3,7 +3,7 @@
 # 300 epochs, global batch size 16 on two GPUs, and Point-BERT metrics.
 
 SOLVER:
-  gpu: 0,1,
+  gpu: 0,1,2,3,
   run: train
   logdir: logs/shapenetpart/from_scratch_2048
   best_val: max:mIoUI
