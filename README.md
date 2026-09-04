@@ -67,13 +67,7 @@ The code has been tested on Ubuntu 20.04.
     ```bash
     python classification.py \
       --config configs/cls_m40.yaml \
-      SOLVER.gpu 0,1, \
-      SOLVER.lr 0.00005 \
-      SOLVER.logdir logs/m40/standard \
-      DATA.train.filelist data/ModelNet40/filelist/m40_train.txt \
-      DATA.test.filelist data/ModelNet40/filelist/m40_test.txt \
-      DATA.train.batch_size 16 \
-      DATA.test.batch_size 16
+      SOLVER.gpu 0,1
     ```
 
    PointTTT achieves 97.4% OA without voting, with 2.2M trainable parameters and
@@ -97,10 +91,7 @@ GPUs and a total training batch size of 32:
 ```bash
 python classification.py \
   --config configs/cls_scanobjectnn_pbt50rs.yaml \
-  SOLVER.gpu 0,1, \
-  SOLVER.lr 0.00005 \
-  DATA.train.batch_size 16 \
-  DATA.test.batch_size 16
+  SOLVER.gpu 0,1
 ```
 
 PointTTT achieves 93.1%, 90.5%, and 84.5% OA on OBJ-BG, OBJ-ONLY, and
@@ -113,14 +104,7 @@ each data-loader worker, so it does not require the PointNet++ CUDA extension:
 ```bash
 python classification.py \
   --config configs/cls_scanobjectnn_pbt50rs.yaml \
-  SOLVER.gpu 0,1, \
-  SOLVER.lr 0.00005 \
-  DATA.train.num_points 1024 \
-  DATA.train.sampling pointbert \
-  DATA.train.batch_size 16 \
-  DATA.test.num_points 1024 \
-  DATA.test.sampling pointbert \
-  DATA.test.batch_size 16
+  SOLVER.gpu 0,1
 ```
 
 In `pointbert` mode, training performs FPS to 1200 candidate points followed by
@@ -142,10 +126,7 @@ a total batch size of 32 in the paper:
 ```bash
 python classification.py \
   --config configs/cls_shapenet55_pretrain.yaml \
-  SOLVER.gpu 0,1, \
-  SOLVER.lr 0.00005 \
-  DATA.train.batch_size 16 \
-  DATA.test.batch_size 16
+  SOLVER.gpu 0,1
 ```
 
 PointTTT achieves 91.2% OA without voting, with 2.2M trainable parameters and
