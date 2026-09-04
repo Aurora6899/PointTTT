@@ -1,6 +1,6 @@
 
 SOLVER:
-  gpu: 0,1,
+  gpu: 0,1,2,3,
   run: train
   logdir: logs/scannet/hierarchical_pointttt_1cm_phase2
   best_val: max:mIoU_part
