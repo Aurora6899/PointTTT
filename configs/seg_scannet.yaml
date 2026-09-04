@@ -14,7 +14,7 @@ SOLVER:
   type: adamw_attn
 
   # Intentionally kept unchanged; OctFormer's official value is 1.5e-3.
-  lr: 0.001
+  lr: 0.0001
   lr_type: step_warmup
   milestones: (360, 520)
   dist_url: tcp://localhost:10001
