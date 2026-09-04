@@ -1,4 +1,4 @@
-"""PointTTT backbone adapter for the OctFormer/FCAF3D detection pipeline.
+"""PointTTT backbone adapter for the FCAF3D detection pipeline.
 
 This module is intentionally not imported from ``models/__init__.py``.  It is
 loaded only by ``detection.py``, keeping MMDetection3D and MinkowskiEngine
