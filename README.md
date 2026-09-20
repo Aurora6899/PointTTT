@@ -67,7 +67,10 @@ The code has been tested on Ubuntu 20.04.
     ```bash
     python classification.py \
       --config configs/cls_m40.yaml \
-      SOLVER.gpu 0,1,
+      SOLVER.gpu 0,1,\
+      SOLVER.logdir logs/modelnet40/xyz_only \
+      MODEL.feature P \
+      MODEL.channel 3
     ```
 
    PointTTT achieves 97.4% OA without voting, with 2.2M trainable parameters and
