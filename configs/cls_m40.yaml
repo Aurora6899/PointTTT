@@ -1,9 +1,16 @@
+# --------------------------------------------------------
+# PointTTT: ModelNet40 Classification (XYZ-only)
+# Input: 8000 points, XYZ coordinates only
+# Octree feature: P (3 channels)
+# No normal or local displacement input features
+# --------------------------------------------------------
+
 SOLVER:
   gpu: 0,
   run: train
   type: adamw
   best_val: max:accu
-  logdir: logs/modelnet40/cls_ttt/default
+  logdir: logs/modelnet40/xyz_only
   rand_seed: 42
 
   max_epoch: 300
@@ -13,16 +20,18 @@ SOLVER:
   lr: 0.0001
   lr_type: step
   weight_decay: 0.05
-  # The original schedule is retained. The epoch-160 milestone is outside
-  # this requested 150-epoch experiment and therefore has no effect.
   milestones: (120,160)
   ckpt_num: 5
 
 DATA:
   train:
     name: modelnet40
+
+    # Octree construction
     depth: 6
     full_depth: 2
+
+    # Data augmentation
     orient_normal: xyz
     distort: True
     angle: (0, 0, 5)
@@ -31,6 +40,8 @@ DATA:
     uniform: False
     jitter: 0.125
     flip: (0.0, 0.0, 0.0)
+
+    # Data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
     filelist: data/ModelNet40/filelist/m40_train.txt
     batch_size: 32
@@ -40,8 +51,12 @@ DATA:
 
   test:
     name: modelnet40
+
+    # Octree construction
     depth: 6
     full_depth: 2
+
+    # No test-time augmentation
     orient_normal: xyz
     distort: False
     angle: (0, 0, 5)
@@ -50,6 +65,8 @@ DATA:
     uniform: False
     jitter: 0.125
     flip: (0.0, 0.0, 0.0)
+
+    # Data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
     filelist: data/ModelNet40/filelist/m40_test.txt
     batch_size: 16
@@ -60,9 +77,13 @@ DATA:
 MODEL:
   name: pointttt_cls
   nout: 40
-  channel: 4
+
+  # XYZ-only octree input features
+  channel: 3
   nempty: False
-  feature: ND
+  feature: P
+
+  # PointTTT configuration
   ttt_base_lr: 1.0
   ttt_update_train: True
   ttt_update_test: True
