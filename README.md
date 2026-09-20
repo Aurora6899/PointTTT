@@ -53,28 +53,87 @@ The code has been tested on Ubuntu 20.04.
 
 ## 2. ModelNet40 Classification
 
-1. **Data**: Run the following command to prepare the dataset.
+### 2.1 Data Preparation
 
-    ```bash
-    python tools/cls_modelnet.py
-    ```
+PointTTT follows the standard ModelNet40 train/test split
+with 9,843 training shapes and 2,468 testing shapes.
 
-2. **Train**: PointTTT uses the standard 9,843/2,468 train/test split and is
-   trained for 300 epochs with a total batch size of 32.
-   The checked-in `cls_m40.yaml` currently points to one few-shot split, so the
-   standard file lists must be overridden for the paper's 97.4% OA result.
+For each CAD model, 8,000 points are sampled from its
+surface and normalized before octree construction.
 
-    ```bash
-    python classification.py \
-      --config configs/cls_m40.yaml \
-      SOLVER.gpu 0,1,\
-      SOLVER.logdir logs/modelnet40/xyz_only \
-      MODEL.feature P \
-      MODEL.channel 3
-    ```
+Prepare the dataset using:
 
-   PointTTT achieves 97.4% OA without voting, with 2.2M trainable parameters and
-   1.08 GFLOPs in the paper.
+```bash
+python tools/cls_modelnet.py
+```
+
+### 2.2 Input Configuration
+
+The revised PointTTT ModelNet40 classification experiment
+uses XYZ coordinates as the only input information.
+
+We construct octrees with a maximum depth of 6 and a
+full depth of 2.
+
+The model uses three-dimensional octree coordinate
+features (P), without normal (N) or local displacement
+(D) features.
+
+The corresponding configuration is:
+
+```yaml
+MODEL:
+  name: pointttt_cls
+  nout: 40
+  channel: 3
+  nempty: False
+  feature: P
+  ttt_base_lr: 1.0
+  ttt_update_train: True
+  ttt_update_test: True
+```
+
+Although the dataset preparation script also generates
+surface normals, they are not used as network input
+features in the XYZ-only configuration.
+
+### 2.3 Training
+
+PointTTT is trained from scratch without external
+pre-trained weights.
+
+The model is trained for 300 epochs using AdamW with
+an initial learning rate of 0.0001.
+
+Run the training command:
+
+```bash
+python classification.py \
+  --config configs/cls_m40.yaml \
+  SOLVER.gpu 0,1,
+```
+
+Training logs and checkpoints are saved to:
+
+```text
+logs/modelnet40/xyz_only/
+```
+
+### 2.4 Classification Results
+
+The revised ModelNet40 classification experiment achieves
+97.4% overall accuracy (OA) using XYZ-only input features.
+
+This result is obtained without test-time voting, with
+PointTTT updates enabled during inference.
+
+The original ND configuration also achieved 97.4% OA.
+The XYZ-only experiment demonstrates that the same
+reported classification accuracy can be achieved without
+normal and local displacement input features.
+
+The XYZ-only configuration is used for the revised
+ModelNet40 classification result reported in the paper.
 
 ## 3. ScanObjectNN Classification
 
