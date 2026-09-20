@@ -15,8 +15,8 @@ from .ttt import TTTConfig, TTTLinear, TTTMLP
 
 
 MULTI_SERIALIZATION_CONFIG = {
-    'enabled': False,
-    'strategy': 'random',
+    'enabled': True,
+    'strategy': 'adaptive',
     'methods': ['z_order', 'trans_z', 'hilbert', 'trans_hilbert'],
     'debug': False
 }
