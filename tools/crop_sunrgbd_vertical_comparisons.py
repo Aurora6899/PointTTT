@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gc
 from pathlib import Path
 
 import cv2
@@ -11,14 +12,16 @@ import numpy as np
 from PIL import Image
 
 
-PANELS = (
-    "input_scene", "octformer", "3det_mamba", "pointttt", "ground_truth")
+PANELS = ("ground_truth", "octformer", "3det_mamba", "pointttt")
 
 
 def parse_args():
   parser = argparse.ArgumentParser(
       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument("--root", type=Path, required=True)
+  parser.add_argument(
+      "--scene", default=None,
+      help="Process only this scene directory name (useful for large images).")
   parser.add_argument("--padding", type=int, default=24)
   parser.add_argument("--threshold", type=int, default=250)
   parser.add_argument(
@@ -28,10 +31,13 @@ def parse_args():
       "--min-component-pixels", type=int, default=1024,
       help="Ignore disconnected foreground components smaller than this area.")
   parser.add_argument("--dpi", type=int, default=1200)
+  parser.add_argument(
+      "--scale", type=float, default=1.0,
+      help="Scale output width, height, and padding by this factor.")
   parser.add_argument("--output-name", default="comparison_vertical.png")
   parser.add_argument(
       "--overwrite-panels", action="store_true",
-      help="Replace the five source PNGs with their tightly cropped versions.")
+      help="Replace the four source PNGs with their tightly cropped versions.")
   return parser.parse_args()
 
 
@@ -85,25 +91,37 @@ def process_scene(scene_dir: Path, args):
   # Equal content widths allow direct vertical concatenation without adding
   # variable left/right blank canvases to narrower panels.
   content_width = max(image.width for image in foregrounds)
-  panels = [
-      add_white_padding(resize_to_width(image, content_width), args.padding)
+  target_width = max(1, int(round(content_width * args.scale)))
+  target_padding = max(0, int(round(args.padding * args.scale)))
+  target_heights = [
+      max(1, int(round(image.height * target_width / image.width)))
       for image in foregrounds
   ]
-
-  if args.overwrite_panels:
-    for path, panel in zip(paths, panels):
-      panel.save(path, dpi=(args.dpi, args.dpi))
-
   output = Image.new(
-      "RGB", (panels[0].width, sum(panel.height for panel in panels)), "white")
+      "RGB",
+      (target_width + 2 * target_padding,
+       sum(height + 2 * target_padding for height in target_heights)),
+      "white")
   top = 0
-  for panel in panels:
+  for path, foreground, target_height in zip(
+      paths, foregrounds, target_heights):
+    resized = foreground.resize(
+        (target_width, target_height), Image.Resampling.LANCZOS)
+    panel = add_white_padding(resized, target_padding)
     output.paste(panel, (0, top))
     top += panel.height
+    if args.overwrite_panels:
+      panel.save(path, dpi=(args.dpi, args.dpi))
+    resized.close()
+    panel.close()
   output_path = scene_dir / args.output_name
   output.save(output_path, dpi=(args.dpi, args.dpi))
   print("[saved] %s size=%dx%d" %
         (output_path, output.width, output.height))
+  output.close()
+  for foreground in foregrounds:
+    foreground.close()
+  gc.collect()
   return True
 
 
@@ -111,6 +129,8 @@ def main():
   args = parse_args()
   if args.padding < 0:
     raise ValueError("--padding must be non-negative")
+  if args.scale <= 0:
+    raise ValueError("--scale must be positive")
   if not 0 <= args.threshold <= 255:
     raise ValueError("--threshold must be in [0, 255]")
   if args.min_axis_pixels < 1:
@@ -118,7 +138,13 @@ def main():
   if args.min_component_pixels < 1:
     raise ValueError("--min-component-pixels must be positive")
   root = args.root.resolve()
-  scene_dirs = sorted(path for path in root.iterdir() if path.is_dir())
+  if args.scene is not None:
+    scene_dir = root / args.scene
+    if not scene_dir.is_dir():
+      raise FileNotFoundError(scene_dir)
+    scene_dirs = [scene_dir]
+  else:
+    scene_dirs = sorted(path for path in root.iterdir() if path.is_dir())
   processed = sum(process_scene(scene_dir, args) for scene_dir in scene_dirs)
   print("Processed %d scenes in %s" % (processed, root))
 

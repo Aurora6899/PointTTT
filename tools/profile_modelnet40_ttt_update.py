@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(REPO_ROOT))
 
 from datasets.modelnet40 import read_file
-from models.point_ttt_cls import PointTTTCls
+from models.PointTTTCls import PointTTTCls
 
 
 def parse_args():

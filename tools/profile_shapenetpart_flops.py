@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
   sys.path.insert(0, str(REPO_ROOT))
 
-from models.point_ttt_seg import PointTTTSeg
+from models.PointTTTSeg import PointTTTSeg
 
 
 def parse_args():
