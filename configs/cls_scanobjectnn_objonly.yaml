@@ -1,11 +1,90 @@
-BASE:
-  - configs/cls_scanobjectnn_objbg.yaml
+# ScanObjectNN OBJ_ONLY classification with paper-aligned PointTTT/ASR.
 
 SOLVER:
+  gpu: 0,
+  run: train
+  type: adamw
+  best_val: max:accu
   logdir: logs/scanobjectnn/objonly
+  rand_seed: 42
+  max_epoch: 300
+  test_every_epoch: 1
+  log_per_iter: 20
+  lr: 0.0001
+  lr_type: step
+  weight_decay: 0.05
+  milestones: (120,160)
+  ckpt_num: 20
+  pretrained: ''
 
 DATA:
   train:
+    name: scanobjectnn
+    split: train
     h5_file: data/ScanObjectNN/main_split_nobg/training_objectdataset.h5
+    num_points: 2048
+    sampling: none
+    pointbert_candidate_points: 1200
+    cache_fps: True
+    normalize: False
+    depth: 6
+    full_depth: 2
+    orient_normal: ''
+    distort: True
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.25
+    uniform: False
+    jitter: 0.1
+    flip: (0.0, 0.0, 0.0)
+    batch_size: 32
+    shuffle: True
+    pin_memory: False
+    num_workers: 4
+
   test:
+    name: scanobjectnn
+    split: test
     h5_file: data/ScanObjectNN/main_split_nobg/test_objectdataset.h5
+    num_points: 2048
+    sampling: none
+    pointbert_candidate_points: 1200
+    cache_fps: True
+    normalize: False
+    depth: 6
+    full_depth: 2
+    orient_normal: ''
+    distort: False
+    angle: (0, 0, 0)
+    interval: (1, 1, 1)
+    scale: 0.0
+    uniform: False
+    jitter: 0.0
+    flip: (0.0, 0.0, 0.0)
+    batch_size: 16
+    shuffle: False
+    pin_memory: False
+    num_workers: 2
+
+MODEL:
+  name: pointttt_cls
+  nout: 15
+  channel: 3
+  nempty: True
+  feature: P
+  partition_by_batch: True
+  ttt_base_lr: 1.0
+  ttt_update_train: True
+  ttt_update_test: True
+  ttt_layer_type: linear
+  ttt_share_directions: False
+  ttt_direction_mode: bidirectional
+  ttt_fusion_mode: gated
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
+
+LOSS:
+  num_class: 15

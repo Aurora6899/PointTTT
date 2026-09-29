@@ -4,6 +4,7 @@ SOLVER:
   type: adamw
   best_val: max:accu
   logdir: logs/scanobjectnn/objbg
+  rand_seed: 42
   max_epoch: 300
   test_every_epoch: 1
   log_per_iter: 20
@@ -73,6 +74,19 @@ MODEL:
   channel: 3
   nempty: True
   feature: P
+  partition_by_batch: True
+  ttt_base_lr: 1.0
+  ttt_update_train: True
+  ttt_update_test: True
+  ttt_layer_type: linear
+  ttt_share_directions: False
+  ttt_direction_mode: bidirectional
+  ttt_fusion_mode: gated
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
 
 LOSS:
   num_class: 15

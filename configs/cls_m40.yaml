@@ -1,22 +1,15 @@
-# --------------------------------------------------------
-# PointTTT: ModelNet40 Classification (XYZ-only)
-# Input: 8000 points, XYZ coordinates only
-# Octree feature: P (3 channels)
-# No normal or local displacement input features
-# --------------------------------------------------------
+# ModelNet40 XYZ-only classification with the paper-aligned PointTTT/ASR model.
 
 SOLVER:
   gpu: 0,
   run: train
   type: adamw
   best_val: max:accu
-  logdir: logs/modelnet40/xyz_only
+  logdir: logs/modelnet40/paper
   rand_seed: 42
-
-  max_epoch: 300
-  test_every_epoch: 5
+  max_epoch: 150
+  test_every_epoch: 1
   log_per_iter: 20
-
   lr: 0.0001
   lr_type: step
   weight_decay: 0.05
@@ -26,13 +19,11 @@ SOLVER:
 DATA:
   train:
     name: modelnet40
-
-    # Octree construction
     depth: 6
     full_depth: 2
-
-    # Data augmentation
-    orient_normal: xyz
+    # XYZ-only protocol: normals may exist in the source PLY files but are not
+    # oriented or passed to the network.
+    orient_normal: ''
     distort: True
     angle: (0, 0, 5)
     interval: (1, 1, 1)
@@ -40,8 +31,6 @@ DATA:
     uniform: False
     jitter: 0.125
     flip: (0.0, 0.0, 0.0)
-
-    # Data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
     filelist: data/ModelNet40/filelist/m40_train.txt
     batch_size: 32
@@ -51,13 +40,9 @@ DATA:
 
   test:
     name: modelnet40
-
-    # Octree construction
     depth: 6
     full_depth: 2
-
-    # No test-time augmentation
-    orient_normal: xyz
+    orient_normal: ''
     distort: False
     angle: (0, 0, 5)
     interval: (1, 1, 1)
@@ -65,8 +50,6 @@ DATA:
     uniform: False
     jitter: 0.125
     flip: (0.0, 0.0, 0.0)
-
-    # Data loading
     location: data/ModelNet40/ModelNet40.ply.normalize
     filelist: data/ModelNet40/filelist/m40_test.txt
     batch_size: 16
@@ -77,16 +60,23 @@ DATA:
 MODEL:
   name: pointttt_cls
   nout: 40
-
-  # XYZ-only octree input features
   channel: 3
   nempty: False
+  # P denotes point coordinates only; no normal feature is consumed.
   feature: P
-
-  # PointTTT configuration
+  partition_by_batch: True
   ttt_base_lr: 1.0
   ttt_update_train: True
   ttt_update_test: True
+  ttt_layer_type: linear
+  ttt_share_directions: False
+  ttt_direction_mode: bidirectional
+  ttt_fusion_mode: gated
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
 
 LOSS:
   num_class: 40

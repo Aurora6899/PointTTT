@@ -3,10 +3,11 @@
 # 300 epochs, global batch size 16 on two GPUs, and Point-BERT metrics.
 
 SOLVER:
-  gpu: 0,1,2,3,
+  gpu: 0,1,
   run: train
   logdir: logs/shapenetpart/from_scratch_2048
   best_val: max:mIoUI
+  rand_seed: 42
   # Periodic validation remains single-pass. After training, reload the model
   # selected by mIoUI and run the independent Utonia ten-vote TTA evaluation.
   final_test_best: True
@@ -95,7 +96,7 @@ DATA:
 
 MODEL:
   name: pointttt_seg
-  # The four-stage point_ttt_seg_base is configured in builder.py with
+  # The four-stage PointTTTSeg_base is configured in builder.py with
   # channels [96, 192, 384, 384] and blocks [2, 2, 18, 2].
   feature: P
   channel: 3
@@ -104,6 +105,21 @@ MODEL:
   interp: nearest
   sync_bn: True
   find_unused_parameters: False
+  partition_by_batch: True
+  ttt_base_lr: 1.0
+  ttt_update_train: True
+  ttt_update_test: True
+  ttt_patch_size: 64
+  ttt_num_heads: 24
+  ttt_layer_type: linear
+  ttt_share_directions: False
+  ttt_direction_mode: bidirectional
+  ttt_fusion_mode: gated
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
 
 LOSS:
   # ShapeNetPart's valid part ids are 0--49; do not mask part 0.

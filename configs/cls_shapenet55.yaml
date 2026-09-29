@@ -1,9 +1,12 @@
+# ShapeNet55-34 supervised classification with paper-aligned PointTTT/ASR.
+
 SOLVER:
   gpu: 0,
   run: train
   type: adamw
   best_val: max:accu
-  logdir: logs/shapenet55/supervised_1024
+  logdir: logs/shapenet55/paper
+  rand_seed: 42
   max_epoch: 300
   test_every_epoch: 1
   log_per_iter: 20
@@ -20,8 +23,6 @@ DATA:
     point_root: data/ShapeNet55-34/shapenet_pc
     filelist: data/ShapeNet55-34/ShapeNet-55/train.txt
     num_classes: 55
-    # Match Point-BERT's ShapeNet55 loader: randomly sample 1024 of 8192
-    # points, then normalize the sampled cloud into one unit sphere.
     num_points: 1024
     sampling: random
     normalize: True
@@ -70,6 +71,19 @@ MODEL:
   channel: 3
   nempty: True
   feature: P
+  partition_by_batch: True
+  ttt_base_lr: 1.0
+  ttt_update_train: True
+  ttt_update_test: True
+  ttt_layer_type: linear
+  ttt_share_directions: False
+  ttt_direction_mode: bidirectional
+  ttt_fusion_mode: gated
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
 
 LOSS:
   num_class: 55

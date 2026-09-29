@@ -31,16 +31,19 @@ model = dict(
         stem_down=3,
         partition_by_batch=True),
     head=dict(
-        type='FCAF3DHead',
+        type='Fcaf3DNeckWithHead',
         in_channels=(96, 192, 384, 384),
         out_channels=128,
         voxel_size=0.01,
-        pts_prune_threshold=100000,
-        pts_assign_threshold=27,
-        pts_center_threshold=18,
+        pts_threshold=100000,
         n_classes=10,
         n_reg_outs=8,
-        bbox_loss=dict(type='RotatedIoU3DLoss')),
+        assigner=dict(
+            type='Fcaf3DAssigner',
+            limit=27,
+            topk=18,
+            n_scales=4),
+        loss_bbox=dict(type='IoU3DLoss', loss_weight=1.0)),
     train_cfg=dict(),
     test_cfg=dict(nms_pre=1000, iou_thr=0.5, score_thr=0.01))
 
@@ -50,7 +53,7 @@ data_root = 'data/sunrgbd/'
 # The canonical-named train pkl in the current dataset overlaps validation by
 # 2200 scenes.  This existing copy contains OctFormer's official 5051--10335
 # training split and is deliberately used without overwriting user data.
-train_ann_file = data_root + 'sunrgbd_infos_train.pkl'
+train_ann_file = data_root + 'sunrgbd_infos_train（复件）.pkl'
 val_ann_file = data_root + 'sunrgbd_infos_val.pkl'
 class_names = (
     'bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser',
@@ -64,7 +67,7 @@ train_pipeline = [
         load_dim=6,
         use_dim=[0, 1, 2, 3, 4, 5]),
     dict(type='LoadAnnotations3D'),
-    dict(type='PointSample', num_points=n_points),
+    dict(type='IndoorPointSample', num_points=n_points),
     dict(type='RandomFlip3D', sync_2d=False,
          flip_ratio_bev_horizontal=0.5),
     dict(
@@ -101,7 +104,7 @@ test_pipeline = [
                 sync_2d=False,
                 flip_ratio_bev_horizontal=0.5,
                 flip_ratio_bev_vertical=0.5),
-            dict(type='PointSample', num_points=n_points),
+            dict(type='IndoorPointSample', num_points=n_points),
             dict(
                 type='DefaultFormatBundle3D',
                 class_names=class_names,
@@ -133,8 +136,7 @@ data = dict(
         pipeline=test_pipeline,
         classes=class_names,
         test_mode=True,
-        box_type_3d='Depth',
-        samples_per_gpu=8),
+        box_type_3d='Depth'),
     test=dict(
         type=dataset_type,
         modality=dict(use_camera=False, use_lidar=True),
@@ -143,8 +145,7 @@ data = dict(
         pipeline=test_pipeline,
         classes=class_names,
         test_mode=True,
-        box_type_3d='Depth',
-        samples_per_gpu=8))
+        box_type_3d='Depth'))
 
 optimizer = dict(type='AdamW', lr=0.001, weight_decay=0.01)
 optimizer_config = dict(
