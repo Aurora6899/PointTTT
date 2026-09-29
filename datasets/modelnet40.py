@@ -1,7 +1,9 @@
 
+import torch
 import numpy as np
 
 from thsolver import Dataset
+from ocnn.octree import Points
 from ocnn.dataset import CollateBatch
 
 from .utils import ReadPly, Transform

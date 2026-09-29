@@ -6,7 +6,7 @@ import scipy.interpolate
 import scipy.ndimage
 import numpy as np
 
-from ocnn.octree import Points
+from ocnn.octree import Points, Octree
 from ocnn.dataset import CollateBatch
 from thsolver import Dataset
 from typing import List
