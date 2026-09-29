@@ -15,7 +15,8 @@ from datasets.shapenetpart import (
     SHAPENETPART_CATEGORIES, SHAPENETPART_PARTS,
     SHAPENETPART_UTONIA_TTA, build_shapenetpart_tta_points)
 from datasets.partnete import (
-    PARTNETE_CATEGORIES, PARTNETE_NUM_CLASSES, build_partnete_test_variant,
+    PARTNETE_CATEGORIES, PARTNETE_NUM_CLASSES, PARTNETE_NUM_PARTS,
+    PARTNETE_PART_OFFSETS, build_partnete_test_variant,
     make_partnete_points, partnete_named_part_ids,
     partnete_test_augmentations)
 from datasets.s3dis import (
@@ -154,6 +155,9 @@ class SegSolver(Solver):
     flags.MODEL.ttt_patch_size = 64
     flags.MODEL.ttt_num_heads = 24
     flags.MODEL.ttt_layer_type = 'linear'
+    flags.MODEL.ttt_share_directions = False
+    flags.MODEL.ttt_direction_mode = 'bidirectional'
+    flags.MODEL.ttt_fusion_mode = 'gated'
     # Hierarchical PointTTT is opt-in.  Classification configs and small-object
     # segmentation therefore keep exactly the historical local-only graph.
     flags.MODEL.pointttt_hierarchical_enabled = False
@@ -167,6 +171,12 @@ class SegSolver(Solver):
     # Zero gives an exact local-PointTTT function at initialization while the
     # gate learns how strongly the new global memory should contribute.
     flags.MODEL.pointttt_global_gate_init = 0.0
+    # Adaptive serialization is opt-in; disabled models use original Z-order.
+    flags.MODEL.serialization_enabled = False
+    flags.MODEL.serialization_aux_weight = 0.0
+    flags.MODEL.serialization_target_temperature = 0.25
+    flags.MODEL.serialization_explore_temperature = 1.0
+    flags.MODEL.serialization_performance_weight = 1.0
     # Optional local/earlier-phase PointTTT weights.  This is deliberately
     # separate from SOLVER.ckpt: solver checkpoints still perform exact resume
     # with optimizer and scheduler state and always take priority.
@@ -776,8 +786,21 @@ class SegSolver(Solver):
   def train_step(self, batch):
     batch = self.process_batch(batch, self.FLAGS.DATA.train)
     logit, label = self.model_forward(batch)
-    loss = self.loss_function(logit, label)
+    task_loss = self.loss_function(logit, label)
+    serialization_loss = task_loss.new_zeros(())
+    model = self.model.module if self.world_size > 1 else self.model
+    getter = getattr(model, 'get_serialization_aux_loss', None)
+    if getter is not None:
+      auxiliary = getter()
+      if auxiliary is not None:
+        serialization_loss = auxiliary
+    serialization_weight = float(getattr(
+        self.FLAGS.MODEL, 'serialization_aux_weight', 0.0))
+    loss = task_loss + serialization_weight * serialization_loss
     accu = self.accuracy(logit, label)
+    # ASR remains part of the optimized loss, but its internal loss and routing
+    # diagnostics are deliberately hidden so the public metrics match a run
+    # without adaptive serialization.
     return {'train/loss': loss, 'train/accu': accu}
 
   def test_step(self, batch):

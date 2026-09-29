@@ -1,15 +1,15 @@
 
-import os
-
 import ocnn
-
+import torch
 import datasets
 import models
+
+import os
 
 os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'INFO'
 
 
-def point_ttt_seg_large(in_channels, out_channels, nempty=True, **kwargs):
+def PointTTTSegLarge(in_channels, out_channels, nempty=True, **kwargs):
   return models.PointTTTSeg(
       in_channels, out_channels,
       channels=[192, 384, 768, 768],
@@ -21,7 +21,7 @@ def point_ttt_seg_large(in_channels, out_channels, nempty=True, **kwargs):
       **kwargs)
 
 
-def point_ttt_seg_base(in_channels, out_channels, nempty=True, **kwargs):
+def PointTTTSegBase(in_channels, out_channels, nempty=True, **kwargs):
   return models.PointTTTSeg(
       in_channels, out_channels,
       channels=[96, 192, 384, 384],
@@ -33,7 +33,7 @@ def point_ttt_seg_base(in_channels, out_channels, nempty=True, **kwargs):
       **kwargs)
 
 
-def point_ttt_seg_small(in_channels, out_channels, nempty=True, **kwargs):
+def PointTTTSegSmall(in_channels, out_channels, nempty=True, **kwargs):
   return models.PointTTTSeg(
       in_channels, out_channels,
       channels=[96, 192, 384, 384],
@@ -45,12 +45,12 @@ def point_ttt_seg_small(in_channels, out_channels, nempty=True, **kwargs):
       **kwargs)
 
 
-def point_ttt_cls(in_channels, out_channels, nempty, **kwargs):
+def PointTTTClassifier(in_channels, out_channels, nemtpy, **kwargs):
   return models.PointTTTCls(
       in_channels, out_channels,
       channels=[192],
       num_blocks=[2],
-      drop_path=0.3, nempty=nempty,
+      drop_path=0.3, nempty=nemtpy,
       stem_down=2, head_drop=0.5,
       **kwargs)
 
@@ -66,6 +66,12 @@ def get_segmentation_model(flags):
       'ttt_patch_size': int(getattr(flags, 'ttt_patch_size', 64)),
       'ttt_num_heads': int(getattr(flags, 'ttt_num_heads', 24)),
       'ttt_layer_type': str(getattr(flags, 'ttt_layer_type', 'linear')),
+      'ttt_share_directions': bool(getattr(
+          flags, 'ttt_share_directions', False)),
+      'ttt_direction_mode': str(getattr(
+          flags, 'ttt_direction_mode', 'bidirectional')),
+      'ttt_fusion_mode': str(getattr(
+          flags, 'ttt_fusion_mode', 'gated')),
       'pointttt_hierarchical_enabled': bool(getattr(
           flags, 'pointttt_hierarchical_enabled', False)),
       'pointttt_hierarchical_stages': list(getattr(
@@ -80,20 +86,25 @@ def get_segmentation_model(flags):
           flags, 'pointttt_global_bidirectional', True)),
       'pointttt_global_gate_init': float(getattr(
           flags, 'pointttt_global_gate_init', 0.0)),
+      'serialization_enabled': bool(getattr(
+          flags, 'serialization_enabled', False)),
+      'serialization_target_temperature': float(getattr(
+          flags, 'serialization_target_temperature', 0.25)),
+      'serialization_explore_temperature': float(getattr(
+          flags, 'serialization_explore_temperature', 1.0)),
+      'serialization_performance_weight': float(getattr(
+          flags, 'serialization_performance_weight', 1.0)),
   }
   networks = {
       # 'octsegformer': octsegformer,
       # 'octsegformer_large': octsegformer_large,
       # 'octsegformer_small': octsegformer_small,
-      'pointttt_seg': point_ttt_seg_base,
-      'pointttt_seg_large': point_ttt_seg_large,
-      'pointttt_seg_small': point_ttt_seg_small,
+      'pointttt_seg': PointTTTSegBase,
+      'pointttt_seg_large': PointTTTSegLarge,
+      'pointttt_seg_small': PointTTTSegSmall,
   }
 
-  model_name = flags.name.lower()
-  if model_name not in networks:
-    raise ValueError(f'Unknown segmentation model: {flags.name}')
-  return networks[model_name](**params)
+  return networks[flags.name.lower()](**params)
 
 
 def get_classification_model(flags):
@@ -104,13 +115,29 @@ def get_classification_model(flags):
     model = ocnn.models.HRNet(
         flags.channel, flags.nout, flags.stages, nempty=flags.nempty)
   elif flags.name.lower() == 'pointttt_cls':
-    model = point_ttt_cls(
+    model = PointTTTClassifier(
         flags.channel, flags.nout, flags.nempty,
+        partition_by_batch=bool(getattr(
+            flags, 'partition_by_batch', False)),
         ttt_base_lr=float(getattr(flags, 'ttt_base_lr', 1.0)),
         ttt_update_train=bool(getattr(flags, 'ttt_update_train', True)),
-        ttt_update_test=bool(getattr(flags, 'ttt_update_test', True)))
+        ttt_update_test=bool(getattr(flags, 'ttt_update_test', True)),
+        ttt_share_directions=bool(getattr(
+            flags, 'ttt_share_directions', False)),
+        ttt_direction_mode=str(getattr(
+            flags, 'ttt_direction_mode', 'bidirectional')),
+        ttt_fusion_mode=str(getattr(
+            flags, 'ttt_fusion_mode', 'gated')),
+        serialization_enabled=bool(getattr(
+            flags, 'serialization_enabled', False)),
+        serialization_target_temperature=float(getattr(
+            flags, 'serialization_target_temperature', 0.25)),
+        serialization_explore_temperature=float(getattr(
+            flags, 'serialization_explore_temperature', 1.0)),
+        serialization_performance_weight=float(getattr(
+            flags, 'serialization_performance_weight', 1.0)))
   else:
-    raise ValueError(f'Unknown classification model: {flags.name}')
+    raise ValueError
   return model
 
 

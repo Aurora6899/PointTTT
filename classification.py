@@ -15,9 +15,14 @@ class ClsSolver(Solver):
   def update_configs(cls):
     flags = get_config()
     flags.defrost()
+    # Keep different point clouds in independent TTT sequences when requested.
+    # This is opt-in; disabled models keep the original Z-order traversal.
+    flags.MODEL.partition_by_batch = False
     flags.MODEL.ttt_base_lr = 1.0
     flags.MODEL.ttt_update_train = True
     flags.MODEL.ttt_update_test = True
+    # Keep independent forward/backward TTT parameters by default.
+    flags.MODEL.ttt_share_directions = False
     flags.freeze()
 
   def get_model(self, flags):
@@ -141,7 +146,18 @@ class ClsSolver(Solver):
     # # print('data:', data[num])
     logits = self.model(data, octree, octree.depth)
     log_softmax = F.log_softmax(logits, dim=1)
-    loss = F.nll_loss(log_softmax, label)
+    classification_loss = F.nll_loss(log_softmax, label)
+    serialization_loss = classification_loss.new_zeros(())
+    if self.model.training:
+      model = self.model.module if self.world_size > 1 else self.model
+      getter = getattr(model, 'get_serialization_aux_loss', None)
+      if getter is not None:
+        auxiliary = getter()
+        if auxiliary is not None:
+          serialization_loss = auxiliary
+    serialization_weight = float(getattr(
+        self.FLAGS.MODEL, 'serialization_aux_weight', 0.0))
+    loss = classification_loss + serialization_weight * serialization_loss
     pred = torch.argmax(logits, dim=1)
     # Keep the metric accumulators in floating point. thsolver gathers and
     # averages every tracked tensor across GPUs, and torch.mean is undefined
@@ -149,15 +165,18 @@ class ClsSolver(Solver):
     correct = pred.eq(label).sum().float()
     total = label.new_tensor(label.numel(), dtype=torch.float32)
     accu = correct / total.clamp_min(1)
-    return loss, accu, correct, total
+    return loss, accu, correct, total, serialization_loss
 
   def train_step(self, batch):
-    loss, accu, _, _ = self.forward(batch)
+    loss, accu, _, _, _ = self.forward(batch)
+    # Keep the public training metrics identical with and without adaptive
+    # serialization. The ASR auxiliary loss is still included in ``loss`` and
+    # optimized normally; it is intentionally not exposed as a log field.
     return {'train/loss': loss, 'train/accu': accu}
 
   def test_step(self, batch):
     with torch.no_grad():
-      loss, _, correct, total = self.forward(batch)
+      loss, _, correct, total, _ = self.forward(batch)
     return {'test/loss': loss, 'test/correct': correct,
             'test/total': total}
 
