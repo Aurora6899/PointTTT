@@ -84,8 +84,8 @@ MODEL:
   serialization_target_temperature: 0.25
   serialization_explore_temperature: 1.0
   serialization_performance_weight: 1.0
-  pointttt_hierarchical_enabled: True
-  pointttt_hierarchical_stages: [2, 3]
+  pointttt_hierarchical_enabled: False
+  pointttt_hierarchical_stages: []
   pointttt_hierarchical_block_interval: 0
   pointttt_global_chunk_size: 128
   pointttt_summary_tokens: 1
