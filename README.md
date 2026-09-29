@@ -69,9 +69,6 @@ python tools/cls_modelnet.py
 
 ### 2.2 Input Configuration
 
-The revised PointTTT ModelNet40 classification experiment
-uses XYZ coordinates as the only input information.
-
 We construct octrees with a maximum depth of 6 and a
 full depth of 2.
 
