@@ -7,7 +7,7 @@
 # Overview
 
 <div  align="center">    
- <img src="PointTTT.jpej" width = ""  align=center />
+ <img src="PointTTT.jpeg" width = ""  align=center />
 </div>
 ### Paper-reported results
 
