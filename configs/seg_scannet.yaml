@@ -1,13 +1,8 @@
-# ScanNet-20 semantic segmentation from scratch.
-# Protocol: OctFormer official ScanNet configuration, except that the learning
-# rate remains 1e-4 as requested. The validation split is used for checkpoint
-# selection; scripts/run_seg_scannet.py switches to the official test split for
-# final 72-vote test inference.
 
 SOLVER:
   gpu: 0,1,
   run: train
-  logdir: logs/scannet/pointttt_hierarchical_1cm
+  logdir: logs/scannet/pointttt_seg
   best_val: max:mIoU_part
 
   ckpt_num: 200
@@ -18,7 +13,6 @@ SOLVER:
   weight_decay: 0.05
   type: adamw_attn
 
-  # Intentionally kept unchanged; OctFormer's official value is 1.5e-3.
   lr: 0.001
   lr_type: step_warmup
   milestones: (360, 520)
@@ -56,9 +50,7 @@ DATA:
     depth: 11
     full_depth: 2
 
-    # Periodic checkpoint selection uses a deterministic single-pass
-    # validation. The official multi-vote validation/test modes enable
-    # distortion explicitly in scripts/run_seg_scannet.py.
+
     distort: False
     angle: (5, 5, 180)
     scale: 0.2
@@ -78,9 +70,6 @@ DATA:
 
 MODEL:
   name: pointttt_seg
-  # PointTTTSeg_base in builder.py uses channels [96, 192, 384, 384]
-  # and num_blocks [2, 2, 18, 2], matching the OctFormer base hierarchy.
-  # N: normal (3), D: displacement (1), F: color (3), P: position (3).
   feature: NDFP
   channel: 10
   nout: 21
@@ -89,8 +78,6 @@ MODEL:
   sync_bn: True
   find_unused_parameters: False
 
-  # Hierarchical PointTTT / Geo-TNT. Stage ids are zero-based. The default
-  # phase uses one global-memory block at the end of stages 2 and 3.
   partition_by_batch: True
   ttt_layer_type: linear
   ttt_patch_size: 64
