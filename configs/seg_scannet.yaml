@@ -1,4 +1,3 @@
-
 SOLVER:
   gpu: 0,1,
   run: train
@@ -22,7 +21,6 @@ DATA:
   train:
     name: scannet
 
-    # OctFormer 1 cm octree protocol.
     depth: 11
     full_depth: 2
 
@@ -49,7 +47,6 @@ DATA:
 
     depth: 11
     full_depth: 2
-
 
     distort: False
     angle: (5, 5, 180)
@@ -82,6 +79,11 @@ MODEL:
   ttt_layer_type: linear
   ttt_patch_size: 64
   ttt_num_heads: 24
+  serialization_enabled: True
+  serialization_aux_weight: 0.1
+  serialization_target_temperature: 0.25
+  serialization_explore_temperature: 1.0
+  serialization_performance_weight: 1.0
   pointttt_hierarchical_enabled: True
   pointttt_hierarchical_stages: [2, 3]
   pointttt_hierarchical_block_interval: 0
