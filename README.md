@@ -1,5 +1,5 @@
 <div align="center">
-<h1>PointTTT</h1>
+<h1>PointT³</h1>
 <h3>Simple Test-Time Training for 3D Point Cloud Analysis</h3>
 </div>
 
@@ -9,6 +9,10 @@
 <div  align="center">    
  <img src="PointTTT.jpeg" width = ""  align=center />
 </div>
+
+## 📢 News
+
+- [2026] Our paper **PointT³ : Simple Test-Time Training for Point Cloud Analysis** has been accepted at **Pattern Recognition**.
 ### Paper-reported results
 
 All PointTTT results in the paper use fully supervised training from scratch
