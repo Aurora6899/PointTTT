@@ -7,7 +7,7 @@
 # Overview
 
 <div  align="center">    
- <img src="PointTTT.jpeg" width = ""  align=center />
+ <img src="Figure3.jpg" width = ""  align=center />
 </div>
 
 ## 📢 News
