@@ -275,35 +275,6 @@ PointTTT achieves 84.2% class-average mIoU and 87.1% instance-average mIoU with
     python scripts/run_seg_scannet.py --run validate --gpu 0,1,2,3, --port 10001
     ```
 
-## 7. SUN RGB-D Detection (PointTTT + FCAF3D)
-
-PointTTT's SUN RGB-D implementation is an optional MMDetection3D entry and does
-not add imports to the existing classification or segmentation programs.
-PointTTT follows the paper's protocol: 10 classes, 100,000 XYZRGB points,
-depth-12 octrees at 0.01 m, FCAF3D, an 18-epoch schedule, and evaluation at 3D
-IoU 0.25 and 0.50. Within FCAF3D, PointTTT serves as the four-stage backbone with
-channels `[96, 192, 384, 384]` and blocks `[2, 2, 18, 2]`.
-It already contains the compiled OCNN,
-MMCV and MinkowskiEngine operators; the compatible mmsegmentation version is:
-
-```bash
-python -m pip install mmsegmentation==0.29.1
-```
-Before training, validate all 10335 point files and the official split:
-
-```bash
-python tools/check_sunrgbd.py --full
-```
-
-Train and validate on two GPUs:
-
-```bash
-CUDA_VISIBLE_DEVICES=0,1 OMP_NUM_THREADS=8 \
-torchrun --nproc_per_node=2 --master_port=29501 \
-  detection.py configs/det_sunrgbd.py --launcher pytorch \
-  --cfg-options runner.max_epochs=18
-```
-
 ## 8. PartNetE Part Segmentation (Repository Extension)
 
 PartNetE is not evaluated or reported in the PointTTT paper. This section
